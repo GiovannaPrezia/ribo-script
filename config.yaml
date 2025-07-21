@@ -1,0 +1,25 @@
+samples:
+  SRR9113067: sample_dif1
+  SRR9113068: sample_dif2
+  SRR9113069: sample_dif3
+  SRR9113064: sample_nd1
+  SRR9113065: sample_nd2
+  SRR9113066: sample_nd3
+
+threads: 12
+min_orf_length: 45
+start_codons: ATG,CTG,GTG,TTG
+stop_codons: TAG,TAA,TGA
+read_lengths: 28,29,36
+psite_offsets: 12,12,12
+phase_score_cutoff: 0.25
+min_valid_codons: 3
+min_reads_per_codon: 1
+
+genome:
+  fasta: "/path/to/hg38.fa"
+  gtf: "/path/to/hg38.ensGene.gtf"
+  star_index: "/path/to/STAR_index"
+  bowtie_index: "/path/to/bowtie_index"
+
+adapters: "illumina_adapters.txt"
