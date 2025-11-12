@@ -1,38 +1,42 @@
-# 🧬 RiboScript Pipeline: Detecção de smORFs em lncRNAs
+# 🧬 RiboLongShort Pipeline: Detection of smORFs in lncRNAs from riboseq data 
 
-Este repositório contém um pipeline automatizado em Bash para processar dados de Ribo-seq, com foco na detecção de smORFs presentes em lncRNAs. O objetivo é gerar arquivos alinhados e quantificados prontos para downstream de análise de tradução e expressão.
+This repository contains an automated **Bash-based pipeline** for processing **Ribo-seq** data, with a focus on detecting **small open reading frames (smORFs)** encoded by **long non-coding RNAs (lncRNAs)**.  
+The pipeline includes full preprocessing of raw sequencing data and identification of translated ORFs using **Ribotricer**.
 
+The final output includes aligned BAM files, count matrices, QC reports, and Ribotricer-generated smORF predictions ready for downstream analysis and interpretation.
 
+---
 
+## 🔁 Workflow Overview
 
-## 🔁 Etapas do Workflow
+The pipeline runs the following steps:
 
-O pipeline executa as seguintes etapas:
+1. **Download SRA files** using `prefetch`  
+2. **Convert SRA to FASTQ** using `fasterq-dump`  
+3. **Quality control** using **FastQC**  
+4. **Adapter trimming** with **Cutadapt**  
+5. **Contaminant removal** (rRNA, tRNA, etc.) using **Bowtie1**  
+6. **Genome alignment** using **STAR**  
+7. **Read quantification** using **featureCounts**  
+8. **Alignment QC** using STAR log files  
+9. **Integrated quality report** using **MultiQC**  
+10. **smORF detection** using **Ribotricer** (frame periodicity + ribosome occupancy)
 
-1. Download dos dados SRA com `prefetch`
-2. Conversão para FASTQ com `fasterq-dump`
-3. Controle de qualidade com `FastQC`
-4. Remoção de adaptadores com `Cutadapt`
-5. Filtragem de contaminantes com `Bowtie1`
-6. Alinhamento com `STAR`
-7. Quantificação com `featureCounts`
-8. QC do STAR
-9. Relatório integrativo com `MultiQC`
+All steps are orchestrated by the master script `pipeline_ribo-seq.sh`, with modular Bash scripts stored in the `scripts/` directory.
 
-## 🧪 Requisitos
+---
+
+## 🧪 Requirements
+
+The following tools must be installed (preferably in a dedicated conda environment):
 
 - `sra-tools`
 - `fastqc`
 - `cutadapt`
-- `bowtie`
+- `bowtie` (Bowtie1)
 - `STAR`
 - `samtools`
 - `subread` (featureCounts)
 - `multiqc`
+- `ribotricer` (Python package)
 
-## ⚙️ Como usar
-
-1. Clone o repositório:
-```bash
-git clone https://github.com/seu-usuario/ribo-seq-smorfs-lncrnas.git
-cd ribo-seq-smorfs-lncrnas
