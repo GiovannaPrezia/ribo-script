@@ -1,25 +1,110 @@
-samples:
-  SRR9113067: sample_dif1
-  SRR9113068: sample_dif2
-  SRR9113069: sample_dif3
-  SRR9113064: sample_nd1
-  SRR9113065: sample_nd2
-  SRR9113066: sample_nd3
+############################################################
+# GLOBAL SETTINGS
+############################################################
 
+project_root: "/path/to/project_root"
 threads: 12
-min_orf_length: 45
-start_codons: ATG,CTG,GTG,TTG
-stop_codons: TAG,TAA,TGA
-read_lengths: 28,29,36
-psite_offsets: 12,12,12
-phase_score_cutoff: 0.25
-min_valid_codons: 3
-min_reads_per_codon: 1
+
+environment:
+  name: "bio_env"
+  file: "environment.yml"
+
+############################################################
+# RIBO-SEQ CONFIGURATION
+############################################################
+
+ribo_seq:
+
+  alignment:
+    max_mismatches: 2
+    multimapping: 1
+
+  read_lengths:
+    - 28
+    - 29
+    - 30
+
+  psite_offsets:
+    - 12
+    - 12
+    - 12
+
+  min_in_frame_fraction: 0.7
+  phase_score_cutoff: 0.5
+  min_valid_codons: 5
+  min_reads_per_codon: 2
+  min_total_reads_per_orf: 20
+
+############################################################
+# RNA-SEQ CONFIGURATION
+############################################################
+
+rna_seq:
+
+  alignment:
+    max_mismatches: 4
+    multimapping: 10
+
+  quantification:
+    method: "featureCounts"
+    stranded: "auto"
+    count_multi_mapping_reads: false
+
+  expression_filters:
+    min_tpm: 1
+    min_counts: 10
+
+############################################################
+# ORF DETECTION
+############################################################
+
+orf_detection:
+
+  min_orf_length_nt: 30
+  max_orf_length_nt: 300
+
+  start_codons:
+    - ATG
+
+  alternative_start_codons:
+    - CTG
+    - GTG
+    - TTG
+
+  stop_codons:
+    - TAG
+    - TAA
+    - TGA
+
+############################################################
+# RNA + RIBO INTEGRATION
+############################################################
+
+integration:
+
+  min_translation_efficiency: 1.0
+  require_expression_in_rna: true
+
+############################################################
+# ANNOTATION FILTERS
+############################################################
+
+annotation_filters:
+
+  restrict_to_biotype: "lncRNA"
+  exclude_annotated_cds_overlap: true
+
+############################################################
+# REFERENCES
+############################################################
 
 genome:
-  fasta: "/path/to/hg38.fa"
-  gtf: "/path/to/hg38.ensGene.gtf"
-  star_index: "/path/to/STAR_index"
-  bowtie_index: "/path/to/bowtie_index"
+  fasta: "/path/to/genome/hg38.fa"
+  gtf: "/path/to/annotation/hg38.gtf"
+
+indices:
+  star_rna: "/path/to/10_indices/star_rna"
+  star_ribo: "/path/to/10_indices/star_ribo"
+  bowtie_rrna: "/path/to/10_indices/bowtie"
 
 adapters: "illumina_adapters.txt"
