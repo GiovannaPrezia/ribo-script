@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Script: build_genome_indices.sh
+# Script: build_genome_index.sh
 # Description:
 #   Download GRCh38 genome (GENCODE), prepare STAR and Bowtie1 indices.
 #
