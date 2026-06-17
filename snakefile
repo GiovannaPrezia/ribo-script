@@ -1,18 +1,31 @@
-configfile: "config.yaml"
+############################################################
+# RiboLongShort
+# Main Snakemake workflow
+############################################################
+
+configfile: "config/config.yaml"
+
+SAMPLES = {
+    sample["sample_name"]: sample["run_id"]
+    for sample in config["samples"]
+}
+
+SIZE_MODES = ["all_lengths", "28_36"]
 
 include: "rules/download.smk"
-include: "rules/preprocessing.smk"
+include: "rules/qc.smk"
+include: "rules/trimming.smk"
+include: "rules/contaminants.smk"
 include: "rules/alignment.smk"
 include: "rules/quantification.smk"
-include: "rules/ribotricer.smk"
-include: "rules/analysis.smk"
+include: "rules/reporting.smk"
 
 rule all:
     input:
-        expand("results/alignment/{sample}_Aligned.sortedByCoord.out.bam", sample=config["samples"].values()),
-        "results/deseq2_MCF7_vs_MCF10A_with_counts.csv",
-        "results/pca_plot.png",
-        "results/volcano_plot.png",
-        "results/heatmap_top30.png",
-        "results/heatmap_genes.csv",
-        "results/ribotricer/ORFs_results_stats.tsv"
+        expand("02_fastq/ribo_seq/{sample}.fastq.gz", sample=SAMPLES.keys()),
+        expand("03_trimmed/ribo_seq/{sample}.trim.fastq.gz", sample=SAMPLES.keys()),
+        expand("04_cleaned/ribo_seq/{mode}/{sample}.{mode}.clean.fastq.gz", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        "11_MultiQC/" + config["multiqc_report_name"],
+        "11_MultiQC/" + config["qc_summary_name"]
