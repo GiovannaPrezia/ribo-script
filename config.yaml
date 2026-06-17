@@ -1,37 +1,434 @@
 ############################################################
-# RiboLongShort configuration file
-# Edit this file before running the pipeline.
+# RiboLongShort
+# Complete Snakemake workflow
 ############################################################
 
+configfile: "config/config.yaml"
+
+PROJECT_ROOT = config["project_root"]
+THREADS = int(config["threads"])
+
+RESOURCE_DIR = config["resources_dir"]
+GTF = f"{RESOURCE_DIR}/{config['gtf']}"
+GENOME_FA = f"{RESOURCE_DIR}/{config['genome_fasta']}"
+STAR_INDEX = f"{RESOURCE_DIR}/{config['star_index']}"
+RNA_DICT = f"{RESOURCE_DIR}/{config['contaminant_index']}"
+
+SIZE_MODES = ["all_lengths", "28_36"]
+
+SAMPLES = {
+    sample["sample_name"]: sample["run_id"]
+    for sample in config["samples"]
+}
+
+RUNS = {
+    sample["run_id"]: sample["sample_name"]
+    for sample in config["samples"]
+}
+
+rule all:
+    input:
+        expand("02_fastq/ribo_seq/{sample}.fastq.gz", sample=SAMPLES.keys()),
+        expand("02_fastq/ribo_seq/fastqc_raw/{sample}_fastqc.html", sample=SAMPLES.keys()),
+        expand("03_trimmed/ribo_seq/{sample}.trim.fastq.gz", sample=SAMPLES.keys()),
+        expand("03_trimmed/ribo_seq/fastqc_trimmed/{sample}.trim_fastqc.html", sample=SAMPLES.keys()),
+        expand("04_cleaned/ribo_seq/{sample}.trim.noN.noPolyG.{mode}.fastq.gz", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("04_cleaned/ribo_seq/{mode}/{sample}.{mode}.clean.fastq.gz", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("04_cleaned/ribo_seq/fastqc_cleaned/{sample}.{mode}.clean_fastqc.html", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam.bai", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt.summary", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        "11_MultiQC/" + config["multiqc_report_name"],
+        "11_MultiQC/" + config["qc_summary_name"]
+
+
 ############################################################
-# PROJECT SETTINGS
+# SRA → FASTQ
 ############################################################
 
-project_root: "/path/to/your/project"
-threads: 20
+rule sra_to_fastq:
+    input:
+        lambda wildcards: f"01_SRAs/ribo_seq/{SAMPLES[wildcards.sample]}/{SAMPLES[wildcards.sample]}.sra"
+    output:
+        "02_fastq/ribo_seq/{sample}.fastq.gz"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.fasterq_dump.log"
+    shell:
+        """
+        fasterq-dump {input} \
+            -O 02_fastq/ribo_seq \
+            -e {threads} \
+            > {log} 2>&1
+
+        mv 02_fastq/ribo_seq/{SAMPLES[wildcards.sample]}.fastq \
+           02_fastq/ribo_seq/{wildcards.sample}.fastq
+
+        pigz -p {threads} 02_fastq/ribo_seq/{wildcards.sample}.fastq
+
+        seqkit stats {output} > QC_tables/{wildcards.sample}.seqkit_raw_stats.txt
+        """
+
 
 ############################################################
-# INPUT DATA
+# FASTQC RAW
 ############################################################
 
-input_type: "sra"
+rule fastqc_raw:
+    input:
+        "02_fastq/ribo_seq/{sample}.fastq.gz"
+    output:
+        html="02_fastq/ribo_seq/fastqc_raw/{sample}_fastqc.html",
+        zip="02_fastq/ribo_seq/fastqc_raw/{sample}_fastqc.zip"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.fastqc_raw.log"
+    shell:
+        """
+        fastqc {input} \
+            -o 02_fastq/ribo_seq/fastqc_raw \
+            -t {threads} \
+            > {log} 2>&1
+        """
 
-samples:
-  - run_id: "RUN_ACCESSION_1"
-    sample_name: "sample_1"
-
-  - run_id: "RUN_ACCESSION_2"
-    sample_name: "sample_2"
 
 ############################################################
-# ADAPTER DATABASE
+# CUTADAPT
 ############################################################
 
-adapter_file: "resources/adapters/illumina_adapters.txt"
+rule cutadapt_trim:
+    input:
+        "02_fastq/ribo_seq/{sample}.fastq.gz"
+    output:
+        "03_trimmed/ribo_seq/{sample}.trim.fastq.gz"
+    log:
+        "logs/{sample}.cutadapt.log"
+    shell:
+        """
+        cutadapt \
+            -u 3 \
+            -a "A{{10}}" \
+            -m 17 \
+            -o {output} \
+            {input} \
+            > {log}
+        """
+
 
 ############################################################
-# OUTPUT SETTINGS
+# QC POST-TRIMMING
 ############################################################
 
-multiqc_report_name: "RiboLongShort_MultiQC.html"
-qc_summary_name: "RiboLongShort_QC_summary.tsv"
+rule qc_trimmed_tables:
+    input:
+        "03_trimmed/ribo_seq/{sample}.trim.fastq.gz"
+    output:
+        length="QC_tables/{sample}.length_distribution_trimmed.txt",
+        topseq="QC_tables/{sample}.top_sequences_trimmed.txt"
+    shell:
+        """
+        zcat {input} \
+            | head -n 4000000 \
+            | awk 'NR%4==2 {{print length($0)}}' \
+            | sort -n \
+            | uniq -c \
+            > {output.length}
+
+        zcat {input} \
+            | head -n 4000000 \
+            | awk 'NR%4==2 {{count[$0]++}} END {{for(seq in count) print count[seq], seq}}' \
+            | sort -nr \
+            | head -n 30 \
+            > {output.topseq}
+        """
+
+
+rule fastqc_trimmed:
+    input:
+        "03_trimmed/ribo_seq/{sample}.trim.fastq.gz"
+    output:
+        html="03_trimmed/ribo_seq/fastqc_trimmed/{sample}.trim_fastqc.html",
+        zip="03_trimmed/ribo_seq/fastqc_trimmed/{sample}.trim_fastqc.zip"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.fastqc_trimmed.log"
+    shell:
+        """
+        fastqc {input} \
+            -o 03_trimmed/ribo_seq/fastqc_trimmed \
+            -t {threads} \
+            > {log} 2>&1
+        """
+
+
+############################################################
+# FILTER noN / noPolyG / all_lengths + 28_36
+############################################################
+
+rule filter_all_lengths:
+    input:
+        "03_trimmed/ribo_seq/{sample}.trim.fastq.gz"
+    output:
+        "04_cleaned/ribo_seq/{sample}.trim.noN.noPolyG.all_lengths.fastq.gz"
+    shell:
+        """
+        zcat {input} \
+            | awk 'NR%4==1{{h=$0}} NR%4==2{{s=$0}} NR%4==3{{p=$0}} NR%4==0{{q=$0; if(s !~ /N/ && s !~ /^G+$/) print h"\\n"s"\\n"p"\\n"q}}' \
+            | gzip > {output}
+        """
+
+
+rule filter_28_36:
+    input:
+        "03_trimmed/ribo_seq/{sample}.trim.fastq.gz"
+    output:
+        "04_cleaned/ribo_seq/{sample}.trim.noN.noPolyG.28_36.fastq.gz"
+    shell:
+        """
+        zcat {input} \
+            | awk 'NR%4==1{{h=$0}} NR%4==2{{s=$0}} NR%4==3{{p=$0}} NR%4==0{{q=$0; if(s !~ /N/ && s !~ /^G+$/ && length(s)>=28 && length(s)<=36) print h"\\n"s"\\n"p"\\n"q}}' \
+            | gzip > {output}
+        """
+
+
+rule qc_filtered_tables:
+    input:
+        "04_cleaned/ribo_seq/{sample}.trim.noN.noPolyG.{mode}.fastq.gz"
+    output:
+        "QC_tables/{sample}.length_distribution_noN_noPolyG_{mode}.txt"
+    shell:
+        """
+        zcat {input} \
+            | head -n 4000000 \
+            | awk 'NR%4==2 {{print length($0)}}' \
+            | sort -n \
+            | uniq -c \
+            > {output}
+        """
+
+
+############################################################
+# BOWTIE CONTAMINANT REMOVAL
+############################################################
+
+rule bowtie_contaminants:
+    input:
+        "04_cleaned/ribo_seq/{sample}.trim.noN.noPolyG.{mode}.fastq.gz"
+    output:
+        "04_cleaned/ribo_seq/{mode}/{sample}.{mode}.clean.fastq.gz"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.{mode}.bowtie.log"
+    shell:
+        """
+        mkdir -p 04_cleaned/ribo_seq/{wildcards.mode}
+
+        bowtie \
+            -p {threads} \
+            -v 1 \
+            --un 04_cleaned/ribo_seq/{wildcards.mode}/{wildcards.sample}.{wildcards.mode}.clean.fastq \
+            {RNA_DICT} \
+            {input} \
+            /dev/null \
+            2> {log}
+
+        gzip -f 04_cleaned/ribo_seq/{wildcards.mode}/{wildcards.sample}.{wildcards.mode}.clean.fastq
+        """
+
+
+############################################################
+# FASTQC CLEAN
+############################################################
+
+rule fastqc_clean:
+    input:
+        "04_cleaned/ribo_seq/{mode}/{sample}.{mode}.clean.fastq.gz"
+    output:
+        html="04_cleaned/ribo_seq/fastqc_cleaned/{sample}.{mode}.clean_fastqc.html",
+        zip="04_cleaned/ribo_seq/fastqc_cleaned/{sample}.{mode}.clean_fastqc.zip"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.{mode}.fastqc_clean.log"
+    shell:
+        """
+        fastqc {input} \
+            -o 04_cleaned/ribo_seq/fastqc_cleaned \
+            -t {threads} \
+            > {log} 2>&1
+        """
+
+
+############################################################
+# STAR ALIGNMENT
+############################################################
+
+rule star_align:
+    input:
+        "04_cleaned/ribo_seq/{mode}/{sample}.{mode}.clean.fastq.gz"
+    output:
+        bam="05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam",
+        bai="05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam.bai",
+        log_final="05_alignment/ribo_seq/{mode}/{sample}.{mode}_Log.final.out"
+    threads:
+        THREADS
+    shell:
+        """
+        mkdir -p 05_alignment/ribo_seq/{wildcards.mode}
+
+        STAR \
+            --runThreadN {threads} \
+            --genomeDir {STAR_INDEX} \
+            --readFilesIn {input} \
+            --readFilesCommand zcat \
+            --outFileNamePrefix 05_alignment/ribo_seq/{wildcards.mode}/{wildcards.sample}.{wildcards.mode}_ \
+            --outSAMtype BAM SortedByCoordinate \
+            --outSAMattributes NH HI AS nM MD \
+            --seedSearchStartLmaxOverLread 0.5 \
+            --outFilterMismatchNmax 2 \
+            --outMultimapperOrder Random \
+            --outFilterMultimapNmax 20 \
+            --outSAMmultNmax 1
+
+        samtools index {output.bam}
+
+        mkdir -p 06_star_qc/ribo_seq
+
+        samtools idxstats {output.bam} \
+            > 06_star_qc/ribo_seq/{wildcards.sample}.{wildcards.mode}.idxstats.txt
+
+        cp {output.log_final} \
+           06_star_qc/ribo_seq/{wildcards.sample}.{wildcards.mode}_Log.final.out
+        """
+
+
+############################################################
+# FEATURECOUNTS
+############################################################
+
+rule featurecounts:
+    input:
+        "05_alignment/ribo_seq/{mode}/{sample}.{mode}_Aligned.sortedByCoord.out.bam"
+    output:
+        counts="07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt",
+        summary="07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt.summary"
+    threads:
+        THREADS
+    log:
+        "logs/{sample}.{mode}.featureCounts.log"
+    shell:
+        """
+        mkdir -p 07_counts/ribo_seq/{wildcards.mode}
+
+        featureCounts \
+            -T {threads} \
+            -t CDS \
+            -g gene_id \
+            -a {GTF} \
+            -o {output.counts} \
+            {input} \
+            2> {log}
+        """
+
+
+############################################################
+# MULTIQC
+############################################################
+
+rule multiqc:
+    input:
+        expand("02_fastq/ribo_seq/fastqc_raw/{sample}_fastqc.html", sample=SAMPLES.keys()),
+        expand("03_trimmed/ribo_seq/fastqc_trimmed/{sample}.trim_fastqc.html", sample=SAMPLES.keys()),
+        expand("04_cleaned/ribo_seq/fastqc_cleaned/{sample}.{mode}.clean_fastqc.html", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("05_alignment/ribo_seq/{mode}/{sample}.{mode}_Log.final.out", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt.summary", sample=SAMPLES.keys(), mode=SIZE_MODES)
+    output:
+        "11_MultiQC/" + config["multiqc_report_name"]
+    shell:
+        """
+        multiqc . \
+            -o 11_MultiQC \
+            -n {config[multiqc_report_name]} \
+            -f
+        """
+
+
+############################################################
+# FINAL QC SUMMARY
+############################################################
+
+rule qc_summary:
+    input:
+        expand("05_alignment/ribo_seq/{mode}/{sample}.{mode}_Log.final.out", sample=SAMPLES.keys(), mode=SIZE_MODES),
+        expand("07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt.summary", sample=SAMPLES.keys(), mode=SIZE_MODES)
+    output:
+        "11_MultiQC/" + config["qc_summary_name"]
+    run:
+        import os
+
+        with open(output[0], "w") as out:
+            out.write("Sample\tRun\tMode\tInput_STAR\tUnique_Reads\tUnique_%\tAvg_Mapped_Length\tToo_Many_Loci_%\tToo_Short_%\tCDS_Assigned\tNoFeatures\tAmbiguity\n")
+
+            for sample, run_id in SAMPLES.items():
+                for mode in SIZE_MODES:
+                    star_log = f"05_alignment/ribo_seq/{mode}/{sample}.{mode}_Log.final.out"
+                    fc_summary = f"07_counts/ribo_seq/{mode}/{sample}.{mode}.CDS_counts.txt.summary"
+
+                    if not os.path.exists(star_log) or not os.path.exists(fc_summary):
+                        continue
+
+                    values = {
+                        "Input_STAR": "",
+                        "Unique_Reads": "",
+                        "Unique_%": "",
+                        "Avg_Mapped_Length": "",
+                        "Too_Many_Loci_%": "",
+                        "Too_Short_%": "",
+                        "CDS_Assigned": "",
+                        "NoFeatures": "",
+                        "Ambiguity": ""
+                    }
+
+                    with open(star_log) as f:
+                        for line in f:
+                            if "Number of input reads" in line:
+                                values["Input_STAR"] = line.split("|")[1].strip()
+                            elif "Uniquely mapped reads number" in line:
+                                values["Unique_Reads"] = line.split("|")[1].strip()
+                            elif "Uniquely mapped reads %" in line:
+                                values["Unique_%"] = line.split("|")[1].strip()
+                            elif "Average mapped length" in line:
+                                values["Avg_Mapped_Length"] = line.split("|")[1].strip()
+                            elif "% of reads mapped to too many loci" in line:
+                                values["Too_Many_Loci_%"] = line.split("|")[1].strip()
+                            elif "% of reads unmapped: too short" in line:
+                                values["Too_Short_%"] = line.split("|")[1].strip()
+
+                    with open(fc_summary) as f:
+                        for line in f:
+                            parts = line.strip().split()
+                            if len(parts) < 2:
+                                continue
+                            if parts[0] == "Assigned":
+                                values["CDS_Assigned"] = parts[1]
+                            elif parts[0] == "Unassigned_NoFeatures":
+                                values["NoFeatures"] = parts[1]
+                            elif parts[0] == "Unassigned_Ambiguity":
+                                values["Ambiguity"] = parts[1]
+
+                    out.write(
+                        f"{sample}\t{run_id}\t{mode}\t"
+                        f"{values['Input_STAR']}\t"
+                        f"{values['Unique_Reads']}\t"
+                        f"{values['Unique_%']}\t"
+                        f"{values['Avg_Mapped_Length']}\t"
+                        f"{values['Too_Many_Loci_%']}\t"
+                        f"{values['Too_Short_%']}\t"
+                        f"{values['CDS_Assigned']}\t"
+                        f"{values['NoFeatures']}\t"
+                        f"{values['Ambiguity']}\n"
+                    )
