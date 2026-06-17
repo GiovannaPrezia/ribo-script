@@ -1,12 +1,37 @@
 ############################################################
-# GLOBAL SETTINGS
+# RiboLongShort configuration file
+# Edit this file before running the pipeline.
 ############################################################
 
-project_root: "/path/to/project_root"
+############################################################
+# PROJECT SETTINGS
+############################################################
+
+project_root: "/path/to/your/project"
 threads: 20
 
-environment:
-  name: "ribo_env"
-  file: "environment.yml"
+############################################################
+# INPUT DATA
+############################################################
 
-adapters: "illumina_adapters.txt"
+input_type: "sra"
+
+samples:
+  - run_id: "RUN_ACCESSION_1"
+    sample_name: "sample_1"
+
+  - run_id: "RUN_ACCESSION_2"
+    sample_name: "sample_2"
+
+############################################################
+# ADAPTER DATABASE
+############################################################
+
+adapter_file: "resources/adapters/illumina_adapters.txt"
+
+############################################################
+# OUTPUT SETTINGS
+############################################################
+
+multiqc_report_name: "RiboLongShort_MultiQC.html"
+qc_summary_name: "RiboLongShort_QC_summary.tsv"
