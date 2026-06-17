@@ -1,34 +1,19 @@
 FROM continuumio/miniconda3:latest
 
 LABEL maintainer="RiboLongShort"
-LABEL description="Docker image for Ribo-seq preprocessing and smORF discovery"
+LABEL description="Container for RiboLongShort Ribo-seq pipeline"
 
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    git \
-    unzip \
-    gzip \
-    pigz \
-    build-essential \
-    default-jre \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/ribolongshort
 
-RUN conda install -y -c conda-forge -c bioconda \
-    sra-tools \
-    fastqc \
-    multiqc \
-    cutadapt \
-    bowtie \
-    star \
-    samtools \
-    subread \
-    seqkit \
-    ribotricer \
-    && conda clean -afy
+COPY environment.yml .
+
+RUN conda env create -f environment.yml
+
+ENV PATH /opt/conda/envs/ribolongshort/bin:$PATH
+
+RUN echo "source activate ribolongshort" >> ~/.bashrc
 
 WORKDIR /workspace
 
