@@ -1,0 +1,19 @@
+# Illumina Universal Adapter
+
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+# Illumina TruSeq Small RNA 3'
+
+TGGAATTCTCGGGTGCCAAGG
+
+# Nextera Transposase
+
+CTGTCTCTTATACACATCT
+
+# Universal PCR Primer
+
+AATGATACGGCGACCACCGA
+
+# TruSeq Index Adapter
+
+GATCGGAAGAGCACACGTCT
