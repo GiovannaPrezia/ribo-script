@@ -1,36 +1,70 @@
 # 🧬 RiboLongShort Pipeline: Detection of smORFs in lncRNAs from Ribo-seq data
 
-This repository contains an automated **Bash-based pipeline** for processing **Ribo-seq** data, with a focus on detecting **small open reading frames (smORFs)** encoded by **long non-coding RNAs (lncRNAs)**.
+RiboLongShort is a modular pipeline for processing Ribo-seq datasets and identifying translated small open reading frames (smORFs), including candidate smORFs encoded by long non-coding RNAs (lncRNAs).
 
-The pipeline performs full preprocessing of raw sequencing data and identification of translated ORFs using **Ribotricer**.
+The workflow performs quality control, contaminant removal, genome alignment, quantification, and ORF detection using Ribotricer.
 
-The final output includes:
+Features
+SRA → FASTQ conversion
+FastQC quality control
+Adapter trimming with Cutadapt
+rRNA/tRNA contaminant removal using Bowtie1
+Genome alignment using STAR
+Quantification using featureCounts
+Integrated MultiQC reports
+ORF detection using Ribotricer
+Interactive or full-workflow execution
+Workflow
+SRA
+ └── FASTQ
+      └── FastQC
+           └── Cutadapt
+                └── Contaminant Removal (Bowtie1)
+                     └── STAR Alignment
+                          └── featureCounts
+                               └── MultiQC
+                                    └── Ribotricer
+Requirements
+SRA Toolkit
+FastQC
+MultiQC
+Cutadapt
+Bowtie1
+STAR
+samtools
+Subread (featureCounts)
+Ribotricer
+Installation
+git clone https://github.com/USERNAME/RiboLongShort.git
+cd RiboLongShort
+Usage
 
-- Aligned BAM files  
-- Read count matrices  
-- QC reports  
-- Ribotricer-generated smORF prediction tables  
+Run the interactive workflow:
 
-These are ready for downstream analysis and interpretation (e.g., differential translation, functional annotation, visualization).
+bash scripts/run_riboseq_interactive.sh
 
----
+The pipeline can be executed:
 
-## 🔁 Workflow Overview
+step-by-step (interactive mode)
+fully automated (continuous mode)
+Outputs
 
-The pipeline runs the following steps:
+The pipeline generates:
 
-1. **Download SRA files** using `prefetch`  
-2. **Convert SRA to FASTQ** using `fasterq-dump`  
-3. **Quality control** using **FastQC**  
-4. **Adapter trimming** with **Cutadapt**  
-5. **Contaminant removal** (rRNA, tRNA, etc.) using **Bowtie1**  
-6. **Genome alignment** using **STAR**  
-7. **Read quantification** using **featureCounts** (Subread)  
-8. **Alignment QC** using STAR log files  
-9. **Integrated quality report** using **MultiQC**  
-10. **smORF detection** using **Ribotricer** (frame periodicity + ribosome occupancy)
+Trimmed FASTQ files
+Contaminant-filtered FASTQ files
+Aligned BAM files
+Alignment statistics
+featureCounts tables
+FastQC reports
+MultiQC reports
+Ribotricer ORF predictions
+Roadmap
+Configuration files (YAML)
+Automated Ribotricer integration
+QC figure generation in R
+Snakemake workflow
+Docker/Singularity support
+iRibo integration
 
-All steps are orchestrated by the master script:
 
-```text
-pipeline_ribo-seq.sh
