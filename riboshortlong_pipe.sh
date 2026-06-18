@@ -105,9 +105,14 @@ STAR_QC_DIR="$BASE_DIR/06_star_qc/ribo_seq"
 COUNT_DIR="$BASE_DIR/07_counts/ribo_seq"
 RIBOTRICER_DIR="$BASE_DIR/10_Ribotricer"
 MULTIQC_DIR="$BASE_DIR/11_MultiQC"
+SCRIPT_DIR="$BASE_DIR/12_scripts"
 
 LOG_DIR="$BASE_DIR/logs"
 QC_DIR="$BASE_DIR/QC_tables"
+
+REPORT_DIR="$BASE_DIR/14_Report"
+REPORT_FIG_DIR="$REPORT_DIR/figures"
+REPORT_TABLE_DIR="$REPORT_DIR/tables"
 
 mkdir -p \
 "$RAW_DIR" "$FASTQC_RAW_DIR" \
@@ -115,7 +120,9 @@ mkdir -p \
 "$CLEAN_DIR" "$FASTQC_CLEAN_DIR" \
 "$ALIGN_DIR" "$STAR_QC_DIR" \
 "$COUNT_DIR" "$RIBOTRICER_DIR" "$MULTIQC_DIR" \
-"$LOG_DIR" "$QC_DIR"
+"$LOG_DIR" "$QC_DIR" \
+"$REPORT_DIR" "$REPORT_FIG_DIR" "$REPORT_TABLE_DIR"
+"$SCRIPT_DIR" "$REPORT_DIR" "$REPORT_FIG_DIR" "$REPORT_TABLE_DIR"
 
 # ======================================================
 # REFERENCE CHECKS
@@ -195,6 +202,7 @@ pause_step () {
     fi
 }
 
+
 # ======================================================
 # FUNCTIONS
 # ======================================================
@@ -243,10 +251,121 @@ run_fastqc_raw () {
         -o "$FASTQC_RAW_DIR" \
         -t "$THREADS" \
         > "$LOG_DIR/${SAMPLE}.fastqc_raw.log" 2>&1
+        
 }
 
-run_cutadapt () {
+
+run_cutadapt_interactive() {
     SAMPLE="$1"
+
+    RAW_FASTQ="$RAW_DIR/${SAMPLE}.fastq.gz"
+    TRIM_FASTQ="$TRIM_DIR/${SAMPLE}.trim.fastq.gz"
+    REPORT="$LOG_DIR/${SAMPLE}.pre_cutadapt_qc.txt"
+
+    echo "======================================"
+    echo "Pré-QC antes do Cutadapt"
+    echo "Amostra: $SAMPLE"
+    echo "======================================"
+
+    # resumo
+    zcat "$RAW_FASTQ" | awk '
+        NR%4==2 {
+            seq=$0
+            n_reads++
+
+            len=length(seq)
+            length_count[len]++
+
+            if (min_len == "" || len < min_len) min_len=len
+            if (len > max_len) max_len=len
+
+            seq_count[seq]++
+            prefix=substr(seq,1,3)
+            prefix_count[prefix]++
+
+            if (seq ~ /N/) n_with_N++
+            if (seq ~ /AAAAAAAAAA/) n_polyA++
+
+            if (n_reads == 100000) exit
+        }
+
+        END {
+            print "Amostra:", "'"$SAMPLE"'"
+            print "Reads analisados:", n_reads
+            print "Tamanho observado:", min_len "-" max_len " nt"
+            print ""
+            print "Reads com N:", n_with_N "/" n_reads, "(" n_with_N/n_reads*100 "%)"
+            print "Reads com polyA >=10:", n_polyA "/" n_reads, "(" n_polyA/n_reads*100 "%)"
+        }
+    ' | tee "$REPORT"
+
+    echo "" | tee -a "$REPORT"
+    echo "Top sequências:" | tee -a "$REPORT"
+
+    zcat "$RAW_FASTQ" \
+        | awk 'NR%4==2 {print $0}' \
+        | head -n 100000 \
+        | sort \
+        | uniq -c \
+        | sort -nr \
+        | head -n 10 \
+        | awk '{print NR". "$2" ("$1" reads)"}' \
+        | tee -a "$REPORT"
+
+    echo "" | tee -a "$REPORT"
+    echo "Primeiros 3 nt mais comuns:" | tee -a "$REPORT"
+
+    zcat "$RAW_FASTQ" \
+        | awk 'NR%4==2 {print substr($0,1,3)}' \
+        | head -n 100000 \
+        | sort \
+        | uniq -c \
+        | sort -nr \
+        | head -n 10 \
+        | awk -v total=100000 '{printf "%s: %.2f%% (%s reads)\n", $2, $1/total*100, $1}' \
+        | tee -a "$REPORT"
+
+    echo ""
+    echo "======================================"
+    echo "Configuração do Cutadapt"
+    echo "======================================"
+
+    read -p "Remover 3 nt iniciais? [s/n]: " REMOVE_3NT
+    read -p "Remover polyA A{10}? [s/n]: " REMOVE_POLYA
+    read -p "Tamanho mínimo? [17]: " MIN_LEN
+
+    MIN_LEN=${MIN_LEN:-17}
+
+    CUTADAPT_ARGS=()
+
+    if [[ "$REMOVE_3NT" == "s" || "$REMOVE_3NT" == "S" ]]; then
+        CUTADAPT_ARGS+=("-u" "3")
+    fi
+
+    if [[ "$REMOVE_POLYA" == "s" || "$REMOVE_POLYA" == "S" ]]; then
+        CUTADAPT_ARGS+=("-a" "A{10}")
+    fi
+
+    CUTADAPT_ARGS+=("-m" "$MIN_LEN")
+
+    echo ""
+    echo "Rodando:"
+    echo "cutadapt ${CUTADAPT_ARGS[*]} -o $TRIM_FASTQ $RAW_FASTQ"
+    echo ""
+
+    cutadapt \
+        "${CUTADAPT_ARGS[@]}" \
+        -o "$TRIM_FASTQ" \
+        "$RAW_FASTQ" \
+        > "$LOG_DIR/${SAMPLE}.cutadapt.log"
+
+    tail -n 20 "$LOG_DIR/${SAMPLE}.cutadapt.log"
+}
+
+run_cutadapt_default () {
+
+    SAMPLE="$1"
+
     RAW_FASTQ="$RAW_DIR/${SAMPLE}.fastq.gz"
     TRIM_FASTQ="$TRIM_DIR/${SAMPLE}.trim.fastq.gz"
 
@@ -261,6 +380,16 @@ run_cutadapt () {
         > "$LOG_DIR/${SAMPLE}.cutadapt.log"
 
     tail -n 20 "$LOG_DIR/${SAMPLE}.cutadapt.log"
+}
+
+run_cutadapt () {
+    SAMPLE="$1"
+
+    if [[ "$PIPELINE_MODE" == "interactive" ]]; then
+        run_cutadapt_interactive "$SAMPLE"
+    else
+        run_cutadapt_default "$SAMPLE"
+    fi
 }
 
 run_qc_trimmed () {
@@ -469,7 +598,26 @@ run_report () {
         done
     done
 
-    echo "Final report generated in: $MULTIQC_DIR"
+    cp "$REPORT_TSV" "$REPORT_TABLE_DIR/${PROJECT_NAME}_QC_report.tsv"
+
+    echo "Final report generated in: $MULTIQC_DIR" | tee -a "$MASTER_LOG"
+    echo "Report tables saved in: $REPORT_TABLE_DIR" | tee -a "$MASTER_LOG"
+    echo "Report figures will be saved in: $REPORT_FIG_DIR" | tee -a "$MASTER_LOG"
+}
+
+run_report_figures () {
+    echo "Generating report figures..." | tee -a "$MASTER_LOG"
+
+    for SAMPLE in "${SAMPLES[@]}"; do
+
+        python "$SCRIPT_DIR/plot_read_length_qc.py" \
+            --sample "$SAMPLE" \
+            --qc_dir "$QC_DIR" \
+            --outdir "$REPORT_FIG_DIR"
+
+    done
+
+    echo "Report figures saved in: $REPORT_FIG_DIR" | tee -a "$MASTER_LOG"
 }
 
 # ======================================================
@@ -512,6 +660,7 @@ done
 
 if [[ "$MODULE" == "9" || "$MODULE" == "10" ]]; then
     run_report
+    run_report_figures
 fi
 
 echo "Finished at: $(date)" | tee -a "$MASTER_LOG"
