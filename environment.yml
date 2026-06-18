@@ -1,4 +1,4 @@
-name: ribo_env
+name: ribolongsmorf_env
 
 channels:
   - conda-forge
