@@ -1,6 +1,6 @@
-# 🧬 RiboLongShort Pipeline: Detection of smORFs in lncRNAs from Ribo-seq Data
+# 🧬 RiboLongSmORF Pipeline: Detection of smORFs in lncRNAs from Ribo-seq Data
 
-RiboLongShort is an automated pipeline designed for processing Ribo-seq datasets and identifying translated small open reading frames (smORFs), with a particular focus on lncRNA-derived smORFs.
+RiboLongSmORF is an automated pipeline designed for processing Ribo-seq datasets treating with high quality and identifying translated small open reading frames (smORFs), with a particular focus on lncRNA-derived smORFs.
 
 The pipeline performs preprocessing, quality control, contaminant removal, genome alignment, quantification, and ORF detection, producing standardized outputs suitable for downstream translational analysis.
 
