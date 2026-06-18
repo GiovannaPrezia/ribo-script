@@ -2,11 +2,6 @@
 
 set -eu
 
-# ======================================================
-# CONFIGURATION FILE
-# User edits config.yaml, not this script
-# ======================================================
-
 CONFIG_FILE="${1:-config.yaml}"
 
 [[ -f "$CONFIG_FILE" ]] || {
@@ -34,19 +29,19 @@ PY
 
 PROJECT_NAME=$(get_yaml "project_name")
 PROJECT_DESCRIPTION=$(get_yaml "project_description")
-
 BASE_DIR=$(get_yaml "project_root")
 THREADS=$(get_yaml "threads")
 
 PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$PIPELINE_DIR/scripts"
 
-GENOME_FA="$BASE_DIR/$(get_yaml "references.genome_fasta")"
-GTF="$BASE_DIR/$(get_yaml "references.gtf")"
-STAR_INDEX="$BASE_DIR/$(get_yaml "references.star_index")"
+# Fixed reference paths
+GENOME_FA="$BASE_DIR/09_genome/GRCh38.primary_assembly.genome.fa"
+GTF="$BASE_DIR/08_annotation/gencode.v45.annotation.gtf"
+STAR_INDEX="$BASE_DIR/09_genome/hg38_star_index"
 
-RNA_DICT_FASTA="$PIPELINE_DIR/$(get_yaml "references.contaminant_fasta")"
-RNA_DICT="$PIPELINE_DIR/$(get_yaml "references.contaminant_index")"
+RNA_DICT_FASTA="$PIPELINE_DIR/resources/rnas_dictionary/rnas_contaminants_dictionary.fa"
+RNA_DICT="$PIPELINE_DIR/resources/rnas_dictionary/indexes/bowtie1/rnas_dictionary_human"
 
 mapfile -t SIZE_MODES < <(python - "$CONFIG_FILE" <<'PY'
 import sys, yaml
@@ -88,10 +83,6 @@ for sample in data["samples"]:
 PY
 )
 
-# ======================================================
-# PROJECT DIRECTORIES
-# ======================================================
-
 SRA_DIR="$BASE_DIR/01_SRAs/ribo_seq"
 RAW_DIR="$BASE_DIR/02_fastq/ribo_seq"
 FASTQC_RAW_DIR="$RAW_DIR/fastqc_raw"
@@ -119,8 +110,8 @@ REPORT_HTML_DIR="$REPORT_DIR/html"
 LOG_DIR="$BASE_DIR/logs"
 QC_DIR="$BASE_DIR/QC_tables"
 
-
 mkdir -p \
+"$SRA_DIR" \
 "$RAW_DIR" "$FASTQC_RAW_DIR" \
 "$TRIM_DIR" "$FASTQC_TRIM_DIR" \
 "$CLEAN_DIR" "$FASTQC_CLEAN_DIR" \
@@ -130,21 +121,13 @@ mkdir -p \
 "$FIG_DIR" \
 "$REPORT_DIR" "$REPORT_TABLE_DIR" "$REPORT_PDF_DIR" "$REPORT_HTML_DIR"
 
-# ======================================================
-# REFERENCE CHECKS
-# ======================================================
-
 [[ -f "$GTF" ]] || { echo "ERROR: GTF file not found: $GTF"; exit 1; }
 [[ -f "$GENOME_FA" ]] || { echo "ERROR: Genome FASTA not found: $GENOME_FA"; exit 1; }
 [[ -f "$STAR_INDEX/Genome" ]] || { echo "ERROR: STAR index not found: $STAR_INDEX"; exit 1; }
 [[ -f "${RNA_DICT}.1.ebwt" ]] || { echo "ERROR: Bowtie contaminant index not found: ${RNA_DICT}.1.ebwt"; exit 1; }
 
-# ======================================================
-# MENU
-# ======================================================
-
 echo "======================================"
-echo "RiboLongShort Pipeline"
+echo "RiboLongSmORF Pipeline"
 echo "Project: $PROJECT_NAME"
 echo "======================================"
 echo ""
@@ -187,7 +170,7 @@ echo "==================================================" | tee "$MASTER_LOG"
 echo "Pipeline started at: $(date)" | tee -a "$MASTER_LOG"
 echo "Project: $PROJECT_NAME" | tee -a "$MASTER_LOG"
 echo "Description: $PROJECT_DESCRIPTION" | tee -a "$MASTER_LOG"
-echo "Size modes: all_lengths and 28_36" | tee -a "$MASTER_LOG"
+echo "Size modes: ${SIZE_MODES[*]}" | tee -a "$MASTER_LOG"
 echo "Mode: $PIPELINE_MODE" | tee -a "$MASTER_LOG"
 echo "Module: $MODULE" | tee -a "$MASTER_LOG"
 echo "==================================================" | tee -a "$MASTER_LOG"
@@ -207,11 +190,6 @@ pause_step () {
         done
     fi
 }
-
-
-# ======================================================
-# FUNCTIONS
-# ======================================================
 
 run_sra_conversion () {
     echo "Converting SRA files to FASTQ..." | tee -a "$MASTER_LOG"
@@ -257,9 +235,7 @@ run_fastqc_raw () {
         -o "$FASTQC_RAW_DIR" \
         -t "$THREADS" \
         > "$LOG_DIR/${SAMPLE}.fastqc_raw.log" 2>&1
-        
 }
-
 
 run_cutadapt_interactive() {
     SAMPLE="$1"
@@ -269,25 +245,18 @@ run_cutadapt_interactive() {
     REPORT="$LOG_DIR/${SAMPLE}.pre_cutadapt_qc.txt"
 
     echo "======================================"
-    echo "Pré-QC antes do Cutadapt"
-    echo "Amostra: $SAMPLE"
+    echo "Pre-QC before Cutadapt"
+    echo "Sample: $SAMPLE"
     echo "======================================"
 
-    # resumo
     zcat "$RAW_FASTQ" | awk '
         NR%4==2 {
             seq=$0
             n_reads++
-
             len=length(seq)
-            length_count[len]++
 
             if (min_len == "" || len < min_len) min_len=len
             if (len > max_len) max_len=len
-
-            seq_count[seq]++
-            prefix=substr(seq,1,3)
-            prefix_count[prefix]++
 
             if (seq ~ /N/) n_with_N++
             if (seq ~ /AAAAAAAAAA/) n_polyA++
@@ -296,17 +265,15 @@ run_cutadapt_interactive() {
         }
 
         END {
-            print "Amostra:", "'"$SAMPLE"'"
-            print "Reads analisados:", n_reads
-            print "Tamanho observado:", min_len "-" max_len " nt"
-            print ""
-            print "Reads com N:", n_with_N "/" n_reads, "(" n_with_N/n_reads*100 "%)"
-            print "Reads com polyA >=10:", n_polyA "/" n_reads, "(" n_polyA/n_reads*100 "%)"
+            print "Reads analyzed:", n_reads
+            print "Observed length:", min_len "-" max_len " nt"
+            print "Reads with N:", n_with_N "/" n_reads, "(" n_with_N/n_reads*100 "%)"
+            print "Reads with polyA >=10:", n_polyA "/" n_reads, "(" n_polyA/n_reads*100 "%)"
         }
     ' | tee "$REPORT"
 
     echo "" | tee -a "$REPORT"
-    echo "Top sequências:" | tee -a "$REPORT"
+    echo "Top sequences:" | tee -a "$REPORT"
 
     zcat "$RAW_FASTQ" \
         | awk 'NR%4==2 {print $0}' \
@@ -319,7 +286,7 @@ run_cutadapt_interactive() {
         | tee -a "$REPORT"
 
     echo "" | tee -a "$REPORT"
-    echo "Primeiros 3 nt mais comuns:" | tee -a "$REPORT"
+    echo "Most common first 3 nt:" | tee -a "$REPORT"
 
     zcat "$RAW_FASTQ" \
         | awk 'NR%4==2 {print substr($0,1,3)}' \
@@ -332,32 +299,22 @@ run_cutadapt_interactive() {
         | tee -a "$REPORT"
 
     echo ""
-    echo "======================================"
-    echo "Configuração do Cutadapt"
-    echo "======================================"
-
-    read -p "Remover 3 nt iniciais? [s/n]: " REMOVE_3NT
-    read -p "Remover polyA A{10}? [s/n]: " REMOVE_POLYA
-    read -p "Tamanho mínimo? [17]: " MIN_LEN
+    read -p "Remove first 3 nt? [y/n]: " REMOVE_3NT
+    read -p "Remove polyA A{10}? [y/n]: " REMOVE_POLYA
+    read -p "Minimum length? [17]: " MIN_LEN
 
     MIN_LEN=${MIN_LEN:-17}
-
     CUTADAPT_ARGS=()
 
-    if [[ "$REMOVE_3NT" == "s" || "$REMOVE_3NT" == "S" ]]; then
+    if [[ "$REMOVE_3NT" == "y" || "$REMOVE_3NT" == "Y" || "$REMOVE_3NT" == "s" || "$REMOVE_3NT" == "S" ]]; then
         CUTADAPT_ARGS+=("-u" "3")
     fi
 
-    if [[ "$REMOVE_POLYA" == "s" || "$REMOVE_POLYA" == "S" ]]; then
+    if [[ "$REMOVE_POLYA" == "y" || "$REMOVE_POLYA" == "Y" || "$REMOVE_POLYA" == "s" || "$REMOVE_POLYA" == "S" ]]; then
         CUTADAPT_ARGS+=("-a" "A{10}")
     fi
 
     CUTADAPT_ARGS+=("-m" "$MIN_LEN")
-
-    echo ""
-    echo "Rodando:"
-    echo "cutadapt ${CUTADAPT_ARGS[*]} -o $TRIM_FASTQ $RAW_FASTQ"
-    echo ""
 
     cutadapt \
         "${CUTADAPT_ARGS[@]}" \
@@ -369,7 +326,6 @@ run_cutadapt_interactive() {
 }
 
 run_cutadapt_default () {
-
     SAMPLE="$1"
 
     RAW_FASTQ="$RAW_DIR/${SAMPLE}.fastq.gz"
@@ -418,9 +374,6 @@ run_qc_trimmed () {
         | head -n 30 \
         > "$QC_DIR/${SAMPLE}.top_sequences_trimmed.txt"
 
-    cat "$QC_DIR/${SAMPLE}.length_distribution_trimmed.txt"
-    cat "$QC_DIR/${SAMPLE}.top_sequences_trimmed.txt"
-
     fastqc "$TRIM_FASTQ" \
         -o "$FASTQC_TRIM_DIR" \
         -t "$THREADS" \
@@ -443,23 +396,6 @@ run_filter () {
     zcat "$TRIM_FASTQ" \
         | awk 'NR%4==1{h=$0} NR%4==2{s=$0} NR%4==3{p=$0} NR%4==0{q=$0; if(s !~ /N/ && s !~ /^G+$/ && length(s)>=28 && length(s)<=36) print h"\n"s"\n"p"\n"q}' \
         | gzip > "$FILTERED_RPF"
-
-    zcat "$FILTERED_ALL" \
-        | head -n 4000000 \
-        | awk 'NR%4==2 {print length($0)}' \
-        | sort -n \
-        | uniq -c \
-        > "$QC_DIR/${SAMPLE}.length_distribution_noN_noPolyG_all_lengths.txt"
-
-    zcat "$FILTERED_RPF" \
-        | head -n 4000000 \
-        | awk 'NR%4==2 {print length($0)}' \
-        | sort -n \
-        | uniq -c \
-        > "$QC_DIR/${SAMPLE}.length_distribution_noN_noPolyG_28_36.txt"
-
-    cat "$QC_DIR/${SAMPLE}.length_distribution_noN_noPolyG_all_lengths.txt"
-    cat "$QC_DIR/${SAMPLE}.length_distribution_noN_noPolyG_28_36.txt"
 }
 
 run_bowtie () {
@@ -484,8 +420,6 @@ run_bowtie () {
             2> "$LOG_DIR/${SAMPLE}.${SIZE_MODE}.bowtie.log"
 
         gzip -f "$CLEAN_FASTQ"
-
-        cat "$LOG_DIR/${SAMPLE}.${SIZE_MODE}.bowtie.log"
     done
 }
 
@@ -538,8 +472,6 @@ run_star () {
 
         cp "$MODE_ALIGN_DIR/${SAMPLE}.${SIZE_MODE}_Log.final.out" \
            "$STAR_QC_DIR/${SAMPLE}.${SIZE_MODE}_Log.final.out"
-
-        cat "$MODE_ALIGN_DIR/${SAMPLE}.${SIZE_MODE}_Log.final.out"
     done
 }
 
@@ -563,8 +495,6 @@ run_featurecounts () {
             -o "$MODE_COUNT_DIR/${SAMPLE}.${SIZE_MODE}.CDS_counts.txt" \
             "$BAM" \
             2> "$LOG_DIR/${SAMPLE}.${SIZE_MODE}.featureCounts.log"
-
-        cat "$MODE_COUNT_DIR/${SAMPLE}.${SIZE_MODE}.CDS_counts.txt.summary"
     done
 }
 
@@ -605,81 +535,29 @@ run_report () {
     done
 
     cp "$REPORT_TSV" "$REPORT_TABLE_DIR/${PROJECT_NAME}_QC_report.tsv"
-
-    echo "Final report generated in: $MULTIQC_DIR" | tee -a "$MASTER_LOG"
-    echo "Report tables saved in: $REPORT_TABLE_DIR" | tee -a "$MASTER_LOG"
-    echo "QC figures will be saved in: $FIG_DIR" | tee -a "$MASTER_LOG"
-    
 }
 
 run_riboseq_qc_figures () {
     echo "Generating Ribo-seq QC figures..." | tee -a "$MASTER_LOG"
 
     for SIZE_MODE in "${SIZE_MODES[@]}"; do
-
         BAM_DIR="$ALIGN_DIR/$SIZE_MODE"
         COUNT_MODE_DIR="$COUNT_DIR/$SIZE_MODE"
         OUTDIR="$FIG_DIR/$SIZE_MODE"
 
         mkdir -p "$OUTDIR"
 
-        echo "QC figures for mode: $SIZE_MODE" | tee -a "$MASTER_LOG"
-
-        Rscript "$SCRIPT_DIR/qc_plots/01_read_length_bam.R" \
-            "$BAM_DIR" \
-            "$OUTDIR" \
-            "$PROJECT_NAME"
-
-        Rscript "$SCRIPT_DIR/qc_plots/02_psite_region.R" \
-            "$BAM_DIR" \
-            "$GTF" \
-            "$OUTDIR" \
-            "$PROJECT_NAME" \
-            12
-
-        Rscript "$SCRIPT_DIR/qc_plots/03_psite_metagene.R" \
-            "$BAM_DIR" \
-            "$GTF" \
-            "$OUTDIR" \
-            "$PROJECT_NAME" \
-            12
-
-        Rscript "$SCRIPT_DIR/qc_plots/04_pca_featurecounts.R" \
-            "$COUNT_MODE_DIR" \
-            "$OUTDIR" \
-            "$PROJECT_NAME"
-
-        Rscript "$SCRIPT_DIR/qc_plots/05_frame_preference.R" \
-            "$BAM_DIR" \
-            "$GTF" \
-            "$OUTDIR" \
-            "$PROJECT_NAME" \
-            12
-
-        Rscript "$SCRIPT_DIR/qc_plots/06_periodicity.R" \
-            "$BAM_DIR" \
-            "$GTF" \
-            "$OUTDIR" \
-            "$PROJECT_NAME" \
-            12
+        Rscript "$SCRIPT_DIR/qc_plots/01_read_length_bam.R" "$BAM_DIR" "$OUTDIR" "$PROJECT_NAME"
+        Rscript "$SCRIPT_DIR/qc_plots/02_psite_region.R" "$BAM_DIR" "$GTF" "$OUTDIR" "$PROJECT_NAME" 12
+        Rscript "$SCRIPT_DIR/qc_plots/03_psite_metagene.R" "$BAM_DIR" "$GTF" "$OUTDIR" "$PROJECT_NAME" 12
+        Rscript "$SCRIPT_DIR/qc_plots/04_pca_featurecounts.R" "$COUNT_MODE_DIR" "$OUTDIR" "$PROJECT_NAME"
+        Rscript "$SCRIPT_DIR/qc_plots/05_frame_preference.R" "$BAM_DIR" "$GTF" "$OUTDIR" "$PROJECT_NAME" 12
+        Rscript "$SCRIPT_DIR/qc_plots/06_periodicity.R" "$BAM_DIR" "$GTF" "$OUTDIR" "$PROJECT_NAME" 12
     done
 
-    Rscript "$SCRIPT_DIR/qc_plots/07_alignment_summary.R" \
-        "$STAR_QC_DIR" \
-        "$FIG_DIR" \
-        "$PROJECT_NAME"
-
-    Rscript "$SCRIPT_DIR/qc_plots/08_contaminant_summary.R" \
-        "$LOG_DIR" \
-        "$FIG_DIR" \
-        "$PROJECT_NAME"
-
-    echo "Ribo-seq QC figures saved in: $FIG_DIR" | tee -a "$MASTER_LOG"
+    Rscript "$SCRIPT_DIR/qc_plots/07_alignment_summary.R" "$STAR_QC_DIR" "$FIG_DIR" "$PROJECT_NAME"
+    Rscript "$SCRIPT_DIR/qc_plots/08_contaminant_summary.R" "$LOG_DIR" "$FIG_DIR" "$PROJECT_NAME"
 }
-
-# ======================================================
-# EXECUTION
-# ======================================================
 
 if [[ "$MODULE" == "0" || "$MODULE" == "10" ]]; then
     run_sra_conversion
@@ -687,8 +565,8 @@ if [[ "$MODULE" == "0" || "$MODULE" == "10" ]]; then
 fi
 
 for SAMPLE in "${SAMPLES[@]}"; do
-    echo "======================================"
-    echo "Sample: $SAMPLE"
+    echo "======================================" | tee -a "$MASTER_LOG"
+    echo "Sample: $SAMPLE" | tee -a "$MASTER_LOG"
     echo "======================================" | tee -a "$MASTER_LOG"
 
     case "$MODULE" in
