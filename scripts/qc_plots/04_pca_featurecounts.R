@@ -10,19 +10,22 @@ suppressPackageStartupMessages({
 
 args <- commandArgs(trailingOnly = TRUE)
 
+if (length(args) < 3) {
+  stop(
+    "Usage: Rscript 04_pca_featurecounts.R <count_dir> <outdir> <project_name>\n",
+    "Example: Rscript 04_pca_featurecounts.R 07_counts/ribo_seq/all_lengths 12_QC_Figures/all_lengths PRJEB29208"
+  )
+}
+
 count_dir <- args[1]
 outdir <- args[2]
 project_name <- args[3]
 
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-# =========================
-# Load featureCounts files
-# =========================
-
 files <- list.files(
   count_dir,
-  pattern = "CDS_counts.txt$",
+  pattern = "CDS_counts\\.txt$",
   full.names = TRUE
 )
 
@@ -34,7 +37,7 @@ count_list <- lapply(files, function(f) {
   df <- read_tsv(f, comment = "#", show_col_types = FALSE)
 
   sample <- basename(f) |>
-    str_remove(".CDS_counts.txt$")
+    str_remove("\\.CDS_counts\\.txt$")
 
   counts <- df[, c("Geneid", ncol(df))]
   colnames(counts) <- c("gene_id", sample)
@@ -43,18 +46,12 @@ count_list <- lapply(files, function(f) {
 })
 
 count_matrix <- Reduce(function(x, y) full_join(x, y, by = "gene_id"), count_list)
-
 count_matrix[is.na(count_matrix)] <- 0
 
 gene_ids <- count_matrix$gene_id
 count_matrix <- as.data.frame(count_matrix[, -1])
 rownames(count_matrix) <- gene_ids
-
 count_matrix <- round(as.matrix(count_matrix))
-
-# =========================
-# Metadata
-# =========================
 
 samples <- colnames(count_matrix)
 
@@ -65,21 +62,13 @@ meta <- data.frame(
 
 meta$day <- str_extract(meta$sample, "DAY_?[0-9]+|D[0-9]+")
 meta$day <- str_replace(meta$day, "DAY_", "D")
+meta$day[is.na(meta$day)] <- "Unknown"
 
 meta$replicate <- case_when(
-  str_detect(meta$sample, "rep1|R1") ~ "R1",
-  str_detect(meta$sample, "rep2|R2") ~ "R2",
+  str_detect(meta$sample, "rep1|Rep1|R1") ~ "Rep1",
+  str_detect(meta$sample, "rep2|Rep2|R2") ~ "Rep2",
   TRUE ~ "Rep"
 )
-
-# fallback para Germany/D21 se só tiver DAY21
-if (all(is.na(meta$day))) {
-  meta$day <- "D21"
-}
-
-# =========================
-# DESeq2 VST + PCA
-# =========================
 
 dds <- DESeqDataSetFromMatrix(
   countData = count_matrix,
@@ -109,15 +98,20 @@ write_tsv(
   file.path(outdir, paste0(project_name, "_PCA_coordinates.tsv"))
 )
 
-# =========================
-# Plot
-# =========================
+day_colors <- c(
+  "D8" = "#2563EB",
+  "D10" = "#7C3AED",
+  "D18" = "#DC2626",
+  "D21" = "#059669",
+  "Unknown" = "gray40"
+)
 
 p <- ggplot(
   pca_df,
   aes(x = PC1, y = PC2, color = day, shape = replicate)
 ) +
   geom_point(size = 5, alpha = 0.9) +
+  scale_color_manual(values = day_colors, drop = FALSE) +
   theme_minimal(base_size = 18) +
   labs(
     title = "PCA - Ribo-seq",
@@ -146,3 +140,5 @@ ggsave(
   width = 8,
   height = 7
 )
+
+cat("PCA figure saved in:", outdir, "\n")
