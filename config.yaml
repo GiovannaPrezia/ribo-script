@@ -12,53 +12,12 @@ project_root: "/path/to/project_root"
 
 threads: 20
 
-# ==========================================================
-# REFERENCE DIRECTORIES INSIDE project_root
-# ==========================================================
-
-reference_dirs:
-  annotation_dir: "08_annotation"
-  genome_dir: "09_genome"
-  contaminant_dir: "09_genome/rnas_dictionary"
-
-# ==========================================================
-# REFERENCE FILES
-# These paths are relative to project_root.
-# The pipeline will check if they exist.
-# ==========================================================
-
-references:
-  genome_fasta: "09_genome/GRCh38.primary_assembly.genome.fa"
-  gtf: "08_annotation/gencode.v45.annotation.gtf"
-  star_index: "09_genome/hg38_star_index"
-
-  contaminant_fasta: "resources/rna_dictionary/rnas_dictionary_human.fa"
-  contaminant_index: "resources/rna_dictionary/indexes/bowtie1/rnas_dictionary_human"
-
-# ==========================================================
-# REFERENCE DOWNLOAD OPTIONS
-# ==========================================================
-
-download_references:
-  enabled: false
-
-  genome_fasta_url: "USER_ADD_URL_HERE"
-  gtf_url: "USER_ADD_URL_HERE"
-  contaminant_dictionary_url: "USER_ADD_URL_HERE"
-
-  build_star_index: false
-  build_bowtie_index: true
-
-# ==========================================================
-# READ PROCESSING
-# ==========================================================
-
 size_modes:
   - "all_lengths"
   - "28_36"
 
 cutadapt:
-  mode: "interactive"   # interactive or default
+  mode: "interactive"
   default_remove_5prime_nt: 3
   default_polyA: "A{10}"
   minimum_length: 17
@@ -68,10 +27,6 @@ filtering:
   remove_polyG_only_reads: true
   rpf_min_length: 28
   rpf_max_length: 36
-
-# ==========================================================
-# SAMPLES
-# ==========================================================
 
 samples:
   - run_id: "RUN_ACCESSION_1"
@@ -83,18 +38,6 @@ samples:
     sample_name: "sample_2"
     condition: "condition_1"
     replicate: "Rep2"
-
-# ==========================================================
-# REPORTS
-# ==========================================================
-
-reports:
-  multiqc_name: "RiboLongShort_MultiQC.html"
-  qc_summary_name: "RiboLongShort_QC_report.tsv"
-
-# ==========================================================
-# OPTIONAL TOOLS
-# ==========================================================
 
 tools:
   run_ribotricer: true
