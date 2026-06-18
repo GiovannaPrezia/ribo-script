@@ -32,6 +32,11 @@ if [[ -f "$STAR_INDEX/Genome" ]]; then
     exit 0
 fi
 
+if [[ ! -f "$GENOME_FA" ]]; then
+    echo "ERROR: Genome FASTA not found: $GENOME_FA"
+    exit 1
+fi
+
 if [[ ! -f "$GTF" ]]; then
     echo "ERROR: GTF not found: $GTF"
     exit 1
