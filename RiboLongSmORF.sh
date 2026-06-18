@@ -55,4 +55,4 @@ echo ""
 echo "Starting pipeline..."
 
 conda run -n "$ENV_NAME" \
-    bash riboshortlong_pipe.sh "$CONFIG_FILE"
+    bash ribolongsmorf_pipe.sh "$CONFIG_FILE"
