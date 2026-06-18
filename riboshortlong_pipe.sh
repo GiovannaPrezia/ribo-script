@@ -36,14 +36,17 @@ PROJECT_NAME=$(get_yaml "project_name")
 PROJECT_DESCRIPTION=$(get_yaml "project_description")
 
 BASE_DIR=$(get_yaml "project_root")
-RESOURCE_DIR=$(get_yaml "resources_dir")
-
 THREADS=$(get_yaml "threads")
 
-RNA_DICT="$RESOURCE_DIR/$(get_yaml "references.contaminant_index")"
-STAR_INDEX="$RESOURCE_DIR/$(get_yaml "references.star_index")"
-GTF="$RESOURCE_DIR/$(get_yaml "references.gtf")"
-GENOME_FA="$RESOURCE_DIR/$(get_yaml "references.genome_fasta")"
+PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$PIPELINE_DIR/scripts"
+
+GENOME_FA="$BASE_DIR/$(get_yaml "references.genome_fasta")"
+GTF="$BASE_DIR/$(get_yaml "references.gtf")"
+STAR_INDEX="$BASE_DIR/$(get_yaml "references.star_index")"
+
+RNA_DICT_FASTA="$PIPELINE_DIR/$(get_yaml "references.contaminant_fasta")"
+RNA_DICT="$PIPELINE_DIR/$(get_yaml "references.contaminant_index")"
 
 mapfile -t SIZE_MODES < <(python - "$CONFIG_FILE" <<'PY'
 import sys, yaml
@@ -105,9 +108,6 @@ STAR_QC_DIR="$BASE_DIR/06_star_qc/ribo_seq"
 COUNT_DIR="$BASE_DIR/07_counts/ribo_seq"
 RIBOTRICER_DIR="$BASE_DIR/10_Ribotricer"
 MULTIQC_DIR="$BASE_DIR/11_MultiQC"
-
-PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_DIR="$PIPELINE_DIR/scripts"
 
 FIG_DIR="$BASE_DIR/12_QC_Figures"
 
