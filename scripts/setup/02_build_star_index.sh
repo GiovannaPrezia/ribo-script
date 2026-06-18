@@ -27,9 +27,9 @@ STAR_INDEX="$PROJECT_ROOT/09_genome/hg38_star_index"
 
 mkdir -p "$STAR_INDEX"
 
-if [[ ! -f "$GENOME_FA" ]]; then
-    echo "ERROR: Genome FASTA not found: $GENOME_FA"
-    exit 1
+if [[ -f "$STAR_INDEX/Genome" ]]; then
+    echo "STAR index already exists: $STAR_INDEX"
+    exit 0
 fi
 
 if [[ ! -f "$GTF" ]]; then
@@ -37,7 +37,7 @@ if [[ ! -f "$GTF" ]]; then
     exit 1
 fi
 
-echo "Building STAR index..."
+echo "Building STAR genome index (this may take several minutes)..."
 
 STAR \
     --runMode genomeGenerate \
