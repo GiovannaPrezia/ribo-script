@@ -1,20 +1,16 @@
 ############################################################
-
 # RiboLongShort configuration file
-
 # Edit only this file before running the pipeline.
-
 ############################################################
 
 # ==========================================================
-
 # PROJECT INFORMATION
-
 # ==========================================================
 
 project_name: "PROJECT_NAME"
 
-project_description: >Ribo-seq project
+project_description: >
+  Ribo-seq project
 
 project_root: "/path/to/project_root"
 
@@ -23,66 +19,46 @@ resources_dir: "/path/to/resources"
 threads: 20
 
 # ==========================================================
-
 # REFERENCE FILES
-
 # ==========================================================
 
 references:
-
-genome_fasta: "GRCh38.primary_assembly.genome.fa"
-
-gtf: "gencode.v45.annotation.gtf"
-
-star_index: "hg38_star_index"
-
-contaminant_index: "rnas_dictionary/indexes/bowtie1/rnas_dictionary_human"
+  genome_fasta: "GRCh38.primary_assembly.genome.fa"
+  gtf: "gencode.v45.annotation.gtf"
+  star_index: "hg38_star_index"
+  contaminant_index: "rnas_dictionary/indexes/bowtie1/rnas_dictionary_human"
 
 # ==========================================================
-
 # READ PROCESSING
-
 # ==========================================================
 
 size_modes:
-
-* "all_lengths"
-* "28_36"
+  - "all_lengths"
+  - "28_36"
 
 # ==========================================================
-
 # SAMPLES
-
 # ==========================================================
 
 samples:
+  - run_id: "RUN_ACCESSION_1"
+    sample_name: "sample_1"
 
-* run_id: "RUN_ACCESSION_1"
-  sample_name: "sample_1"
-
-* run_id: "RUN_ACCESSION_2"
-  sample_name: "sample_2"
+  - run_id: "RUN_ACCESSION_2"
+    sample_name: "sample_2"
 
 # ==========================================================
-
 # REPORTS
-
 # ==========================================================
 
 reports:
-
-multiqc_name: "RiboLongShort_MultiQC.html"
-
-qc_summary_name: "RiboLongShort_QC_report.tsv"
+  multiqc_name: "RiboLongShort_MultiQC.html"
+  qc_summary_name: "RiboLongShort_QC_report.tsv"
 
 # ==========================================================
-
 # OPTIONAL TOOLS
-
 # ==========================================================
 
 tools:
-
-run_ribotricer: true
-
-run_iribo: false
+  run_ribotricer: true
+  run_iribo: false
