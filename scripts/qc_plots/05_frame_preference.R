@@ -7,12 +7,20 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(stringr)
+  library(readr)
 })
+
+# =========================================================
+# ARGS
+# =========================================================
 
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) < 3) {
-  stop("Usage: Rscript 06_periodicity.R <bam_dir> <gtf> <outdir> [project_name] [offset]")
+  stop(
+    "Usage: Rscript 05_frame_preference.R <bam_dir> <gtf> <outdir> [project_name] [offset]\n",
+    "Example: Rscript 05_frame_preference.R 05_alignment/ribo_seq/28_36 08_annotation/gencode.v45.annotation.gtf 12_QC_Figures/28_36 PRJEB29208 12"
+  )
 }
 
 bam_dir <- args[1]
@@ -23,12 +31,20 @@ offset <- ifelse(length(args) >= 5, as.integer(args[5]), 12)
 
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
+# =========================================================
+# BAM DISCOVERY
+# =========================================================
+
 bam_pattern <- "_Aligned.sortedByCoord.out.bam$"
 
-bam_files <- list.files(bam_dir, pattern = bam_pattern, full.names = TRUE)
+bam_files <- list.files(
+  bam_dir,
+  pattern = bam_pattern,
+  full.names = TRUE
+)
 
 if (length(bam_files) == 0) {
-  stop("No BAM files found in: ", bam_dir)
+  stop("No BAM files were found in: ", bam_dir)
 }
 
 sample_names <- basename(bam_files) |>
@@ -50,10 +66,19 @@ meta$replicate <- case_when(
   TRUE ~ "Rep"
 )
 
+# =========================================================
+# ANNOTATION
+# =========================================================
+
 txdb <- makeTxDbFromGFF(gtf)
 cds <- unlist(cdsBy(txdb, by = "tx"))
 
-get_periodicity <- function(bam, sample, day, replicate, offset = 12) {
+# =========================================================
+# FRAME PREFERENCE
+# =========================================================
+
+get_frame_preference <- function(bam, sample, day, replicate, offset = 12) {
+
   cat("Processing:", sample, "\n")
 
   aln <- readGAlignments(bam)
@@ -73,7 +98,9 @@ get_periodicity <- function(bam, sample, day, replicate, offset = 12) {
 
   hits <- findOverlaps(gr_psite, cds, ignore.strand = FALSE)
 
-  if (length(hits) == 0) return(NULL)
+  if (length(hits) == 0) {
+    return(NULL)
+  }
 
   psite_hits <- gr_psite[queryHits(hits)]
   cds_hits <- cds[subjectHits(hits)]
@@ -87,16 +114,18 @@ get_periodicity <- function(bam, sample, day, replicate, offset = 12) {
     end(cds_hits) - psite_start
   )
 
+  frame <- position_from_start %% 3
+
   data.frame(
     sample = sample,
     day = day,
     replicate = replicate,
-    position = position_from_start
+    frame = paste0("Frame ", frame)
   )
 }
 
 df_list <- mapply(
-  get_periodicity,
+  get_frame_preference,
   meta$bam,
   meta$sample,
   meta$day,
@@ -111,39 +140,53 @@ if (nrow(df) == 0) {
   stop("No P-sites overlapped CDS regions.")
 }
 
-df <- df %>%
-  filter(position >= 0, position <= 150)
+df$frame <- factor(df$frame, levels = c("Frame 0", "Frame 1", "Frame 2"))
+
+write_tsv(
+  df,
+  file.path(outdir, paste0(project_name, "_frame_preference_raw.tsv"))
+)
 
 df_sum <- df %>%
-  group_by(sample, day, replicate, position) %>%
+  group_by(sample, day, replicate, frame) %>%
   summarise(n = n(), .groups = "drop") %>%
   group_by(sample) %>%
-  mutate(freq = n / sum(n))
+  mutate(percent = n / sum(n) * 100)
 
-write.table(
+write_tsv(
   df_sum,
-  file.path(outdir, paste0(project_name, "_periodicity_summary.tsv")),
-  sep = "\t",
-  quote = FALSE,
-  row.names = FALSE
+  file.path(outdir, paste0(project_name, "_frame_preference_summary.tsv"))
+)
+
+# =========================================================
+# PLOT
+# =========================================================
+
+frame_colors <- c(
+  "Frame 0" = "#7C3AED",
+  "Frame 1" = "#10B981",
+  "Frame 2" = "#F59E0B"
 )
 
 p <- ggplot(
   df_sum,
-  aes(x = position, y = freq, color = day)
+  aes(x = sample, y = percent, fill = frame)
 ) +
-  geom_line(linewidth = 0.5) +
-  facet_wrap(~sample, scales = "free_y") +
+  geom_col(width = 0.75) +
+  scale_fill_manual(values = frame_colors, drop = FALSE) +
   theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
   labs(
-    title = "3-nt periodicity near CDS start",
-    x = "Position from CDS start (nt)",
-    y = "Normalized P-site frequency",
-    color = "day"
+    title = "P-site frame preference",
+    x = "",
+    y = "% P-sites in CDS",
+    fill = "Frame"
   )
 
 ggsave(
-  file.path(outdir, paste0(project_name, "_Fig_periodicity.png")),
+  file.path(outdir, paste0(project_name, "_Fig_frame_preference.png")),
   p,
   width = 10,
   height = 6,
@@ -151,10 +194,10 @@ ggsave(
 )
 
 ggsave(
-  file.path(outdir, paste0(project_name, "_Fig_periodicity.pdf")),
+  file.path(outdir, paste0(project_name, "_Fig_frame_preference.pdf")),
   p,
   width = 10,
   height = 6
 )
 
-cat("Periodicity figure saved in:", outdir, "\n")
+cat("Frame preference figure saved in:", outdir, "\n")
