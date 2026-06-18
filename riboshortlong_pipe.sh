@@ -105,14 +105,20 @@ STAR_QC_DIR="$BASE_DIR/06_star_qc/ribo_seq"
 COUNT_DIR="$BASE_DIR/07_counts/ribo_seq"
 RIBOTRICER_DIR="$BASE_DIR/10_Ribotricer"
 MULTIQC_DIR="$BASE_DIR/11_MultiQC"
-SCRIPT_DIR="$BASE_DIR/12_scripts"
+
+PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$PIPELINE_DIR/scripts"
+
+FIG_DIR="$BASE_DIR/12_QC_Figures"
+
+REPORT_DIR="$BASE_DIR/13_Report"
+REPORT_TABLE_DIR="$REPORT_DIR/tables"
+REPORT_PDF_DIR="$REPORT_DIR/pdf"
+REPORT_HTML_DIR="$REPORT_DIR/html"
 
 LOG_DIR="$BASE_DIR/logs"
 QC_DIR="$BASE_DIR/QC_tables"
 
-REPORT_DIR="$BASE_DIR/14_Report"
-REPORT_FIG_DIR="$REPORT_DIR/figures"
-REPORT_TABLE_DIR="$REPORT_DIR/tables"
 
 mkdir -p \
 "$RAW_DIR" "$FASTQC_RAW_DIR" \
@@ -121,8 +127,8 @@ mkdir -p \
 "$ALIGN_DIR" "$STAR_QC_DIR" \
 "$COUNT_DIR" "$RIBOTRICER_DIR" "$MULTIQC_DIR" \
 "$LOG_DIR" "$QC_DIR" \
-"$REPORT_DIR" "$REPORT_FIG_DIR" "$REPORT_TABLE_DIR"
-"$SCRIPT_DIR" "$REPORT_DIR" "$REPORT_FIG_DIR" "$REPORT_TABLE_DIR"
+"$FIG_DIR" \
+"$REPORT_DIR" "$REPORT_TABLE_DIR" "$REPORT_PDF_DIR" "$REPORT_HTML_DIR"
 
 # ======================================================
 # REFERENCE CHECKS
@@ -602,22 +608,73 @@ run_report () {
 
     echo "Final report generated in: $MULTIQC_DIR" | tee -a "$MASTER_LOG"
     echo "Report tables saved in: $REPORT_TABLE_DIR" | tee -a "$MASTER_LOG"
-    echo "Report figures will be saved in: $REPORT_FIG_DIR" | tee -a "$MASTER_LOG"
+    echo "QC figures will be saved in: $FIG_DIR" | tee -a "$MASTER_LOG"
+    
 }
 
-run_report_figures () {
-    echo "Generating report figures..." | tee -a "$MASTER_LOG"
+run_riboseq_qc_figures () {
+    echo "Generating Ribo-seq QC figures..." | tee -a "$MASTER_LOG"
 
-    for SAMPLE in "${SAMPLES[@]}"; do
+    for SIZE_MODE in "${SIZE_MODES[@]}"; do
 
-        python "$SCRIPT_DIR/plot_read_length_qc.py" \
-            --sample "$SAMPLE" \
-            --qc_dir "$QC_DIR" \
-            --outdir "$REPORT_FIG_DIR"
+        BAM_DIR="$ALIGN_DIR/$SIZE_MODE"
+        COUNT_MODE_DIR="$COUNT_DIR/$SIZE_MODE"
+        OUTDIR="$FIG_DIR/$SIZE_MODE"
 
+        mkdir -p "$OUTDIR"
+
+        echo "QC figures for mode: $SIZE_MODE" | tee -a "$MASTER_LOG"
+
+        Rscript "$SCRIPT_DIR/qc_plots/01_read_length_bam.R" \
+            "$BAM_DIR" \
+            "$OUTDIR" \
+            "$PROJECT_NAME"
+
+        Rscript "$SCRIPT_DIR/qc_plots/02_psite_region.R" \
+            "$BAM_DIR" \
+            "$GTF" \
+            "$OUTDIR" \
+            "$PROJECT_NAME" \
+            12
+
+        Rscript "$SCRIPT_DIR/qc_plots/03_psite_metagene.R" \
+            "$BAM_DIR" \
+            "$GTF" \
+            "$OUTDIR" \
+            "$PROJECT_NAME" \
+            12
+
+        Rscript "$SCRIPT_DIR/qc_plots/04_pca_featurecounts.R" \
+            "$COUNT_MODE_DIR" \
+            "$OUTDIR" \
+            "$PROJECT_NAME"
+
+        Rscript "$SCRIPT_DIR/qc_plots/05_frame_preference.R" \
+            "$BAM_DIR" \
+            "$GTF" \
+            "$OUTDIR" \
+            "$PROJECT_NAME" \
+            12
+
+        Rscript "$SCRIPT_DIR/qc_plots/06_periodicity.R" \
+            "$BAM_DIR" \
+            "$GTF" \
+            "$OUTDIR" \
+            "$PROJECT_NAME" \
+            12
     done
 
-    echo "Report figures saved in: $REPORT_FIG_DIR" | tee -a "$MASTER_LOG"
+    Rscript "$SCRIPT_DIR/qc_plots/07_alignment_summary.R" \
+        "$STAR_QC_DIR" \
+        "$FIG_DIR" \
+        "$PROJECT_NAME"
+
+    Rscript "$SCRIPT_DIR/qc_plots/08_contaminant_summary.R" \
+        "$LOG_DIR" \
+        "$FIG_DIR" \
+        "$PROJECT_NAME"
+
+    echo "Ribo-seq QC figures saved in: $FIG_DIR" | tee -a "$MASTER_LOG"
 }
 
 # ======================================================
@@ -660,7 +717,7 @@ done
 
 if [[ "$MODULE" == "9" || "$MODULE" == "10" ]]; then
     run_report
-    run_report_figures
+    run_riboseq_qc_figures
 fi
 
 echo "Finished at: $(date)" | tee -a "$MASTER_LOG"
