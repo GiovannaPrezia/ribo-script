@@ -1,51 +1,209 @@
-# 🧬 RiboLongSmORF Pipeline: Detection of smORFs in lncRNAs from Ribo-seq Data
+# RiboLongSmORF
 
-RiboLongSmORF is an automated workflow for processing Ribo-seq datasets, performing comprehensive quality control, and identifying translated small open reading frames (smORFs), with a particular focus on lncRNA-derived smORFs and putative microproteins.
+Automated Ribo-seq processing and lncRNA-derived smORF discovery pipeline.
 
-The pipeline integrates preprocessing, quality assessment, contaminant removal, genome alignment, read quantification, and ORF detection into a reproducible and standardized workflow suitable for translational profiling studies.
-
-The final outputs include:
-
-* Quality control reports
-* Cleaned FASTQ files
-* Genome-aligned BAM files
-* Gene count matrices
-* Ribotricer smORF predictions
-* Integrated MultiQC reports
-* Ribo-seq-specific QC figures
-
-These outputs can be directly used for downstream analyses such as candidate prioritization, differential translation studies, functional annotation, visualization, and experimental validation.
+RiboLongSmORF provides an end-to-end workflow for processing public or in-house Ribo-seq datasets, from SRA download to alignment, quantification, quality control, and downstream analyses focused on small open reading frames (smORFs) encoded by long non-coding RNAs (lncRNAs).
 
 ---
 
-## 🔁 Workflow Overview
+## Features
 
-RiboLongSmORF performs the following steps:
-
-1. Download SRA data (optional)
-2. Convert SRA files to FASTQ (`fasterq-dump`)
-3. Raw read quality control (`FastQC`)
-4. Adapter and sequence trimming (`Cutadapt`)
-5. Post-trimming quality assessment
-6. Contaminant removal (`Bowtie1`)
-7. Quality control of cleaned reads
-8. Genome alignment (`STAR`)
-9. Read quantification (`featureCounts`)
-10. Alignment quality assessment
-11. Integrated report generation (`MultiQC`)
-12. Ribo-seq QC figure generation
-13. smORF detection (`Ribotricer`)
+* Automatic download of public datasets from NCBI SRA
+* FASTQ generation using fasterq-dump
+* FastQC and MultiQC reports
+* Adapter trimming with Cutadapt
+* Removal of contaminant RNAs (rRNA, tRNA, snRNA, snoRNA)
+* STAR genome alignment
+* featureCounts quantification
+* Automated Ribo-seq quality control figures
+* PCA analysis
+* P-site regional distribution
+* Metagene profiling
+* Frame preference analysis
+* 3-nt periodicity analysis
+* Final QC reports and summary tables
 
 ---
 
-## ✨ Key Features
+## Workflow
 
-* Automated end-to-end Ribo-seq processing
-* Support for public SRA datasets
-* Contaminant filtering using a curated human RNA contaminant database
-* Standardized STAR alignment and featureCounts quantification
-* Integrated MultiQC reports
-* Ribo-seq-specific quality control metrics
-* Automated smORF identification with Ribotricer
-* Optimized for lncRNA-derived smORF and microprotein discovery
-* Reproducible and configurable workflow through a single `config.yaml` file
+```text
+SRA Download
+    ↓
+FASTQ Generation
+    ↓
+FastQC (raw)
+    ↓
+Cutadapt Trimming
+    ↓
+FastQC (trimmed)
+    ↓
+noN / noPolyG Filtering
+    ↓
+Length Selection
+    ├── all_lengths
+    └── 28_36
+            ↓
+Contaminant Removal (Bowtie)
+            ↓
+FastQC (clean)
+            ↓
+STAR Alignment
+            ↓
+featureCounts
+            ↓
+MultiQC
+            ↓
+Ribo-seq QC Figures
+            ↓
+Final Reports
+```
+
+---
+
+## Requirements
+
+* Linux
+* Conda (Miniconda or Anaconda)
+* Internet connection for downloading reference files and SRA datasets
+
+---
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/GiovannaPrezia/RiboLongSmorf.git
+
+cd RiboLongSmorf
+```
+
+Run the setup and pipeline:
+
+```bash
+bash RiboLongSmORF.sh config.yaml
+```
+
+The script automatically:
+
+* Creates the Conda environment
+* Downloads reference files
+* Builds the STAR genome index
+* Starts the analysis pipeline
+
+---
+
+## Recommended: Use Screen
+
+Large projects may run for several hours.
+
+Create a screen session before starting:
+
+```bash
+screen -S ribolongsmorf
+```
+
+Run the pipeline:
+
+```bash
+bash RiboLongSmORF.sh config.yaml
+```
+
+Detach from the session:
+
+```bash
+Ctrl+A D
+```
+
+Reconnect later:
+
+```bash
+screen -r ribolongsmorf
+```
+
+List active sessions:
+
+```bash
+screen -ls
+```
+
+---
+
+## Example Configuration
+
+```yaml
+project_name: California_PRJNA544411
+
+project_description: Human cardiomyocyte differentiation Ribo-seq
+
+project_root: /data/California_PRJNA544411
+
+threads: 20
+
+size_modes:
+  - all_lengths
+  - 28_36
+
+samples:
+  - run_id: SRR9113067
+    sample_name: D15_rep1
+
+  - run_id: SRR9113068
+    sample_name: D15_rep2
+
+  - run_id: SRR9113069
+    sample_name: D15_rep3
+```
+
+---
+
+## Output Structure
+
+```text
+01_SRAs/
+02_fastq/
+03_trimmed/
+04_cleaned/
+05_alignment/
+06_star_qc/
+07_counts/
+08_annotation/
+09_genome/
+10_Ribotricer/
+11_MultiQC/
+12_QC_Figures/
+13_Report/
+
+logs/
+QC_tables/
+```
+
+---
+
+## Generated QC Figures
+
+| Script | Description                  |
+| ------ | ---------------------------- |
+| 01     | Read length distribution     |
+| 02     | P-site regional distribution |
+| 03     | P-site metagene profile      |
+| 04     | PCA                          |
+| 05     | Frame preference             |
+| 06     | 3-nt periodicity             |
+| 07     | Alignment summary            |
+| 08     | Contaminant summary          |
+
+---
+
+## References
+
+Reference files are downloaded automatically:
+
+* GRCh38 primary assembly genome
+* GENCODE v45 annotation
+* Human contaminant RNA database
+
+---
+
+Author: Giovanna N. B. Prezia
