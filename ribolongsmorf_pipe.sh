@@ -40,7 +40,7 @@ GENOME_FA="$BASE_DIR/09_genome/GRCh38.primary_assembly.genome.fa"
 GTF="$BASE_DIR/08_annotation/gencode.v45.annotation.gtf"
 STAR_INDEX="$BASE_DIR/09_genome/hg38_star_index"
 
-RNA_DICT_FASTA="$PIPELINE_DIR/resources/rnas_dictionary/rnas_contaminants_dictionary.fa"
+RNA_DICT_FASTA="$PIPELINE_DIR/resources/rnas_dictionary/rnas_dictionary_human.fa"
 RNA_DICT="$PIPELINE_DIR/resources/rnas_dictionary/indexes/bowtie1/rnas_dictionary_human"
 
 mapfile -t SIZE_MODES < <(python - "$CONFIG_FILE" <<'PY'
