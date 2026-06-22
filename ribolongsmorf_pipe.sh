@@ -145,7 +145,7 @@ elif [[ "$MODE" == "2" ]]; then
 
     echo ""
     echo "Available modules:"
-    echo "0 - Convert SRA to FASTQ"
+    echo "0 - Download SRA file and convert to FASTQ"
     echo "1 - Raw FastQC"
     echo "2 - Cutadapt trimming"
     echo "3 - Post-trimming QC"
@@ -192,7 +192,7 @@ pause_step () {
 }
 
 run_sra_conversion () {
-    echo "Converting SRA files to FASTQ..." | tee -a "$MASTER_LOG"
+    echo "Downloading SRA files and converting to FASTQ..." | tee -a "$MASTER_LOG"
 
     for RUN in "${RUNS[@]}"; do
         SAMPLE="${RUN_MAP[$RUN]}"
@@ -201,12 +201,27 @@ run_sra_conversion () {
 
         echo "Run: $RUN → $SAMPLE" | tee -a "$MASTER_LOG"
 
-        [[ -f "$SRA_FILE" ]] || { echo "ERROR: SRA file not found: $SRA_FILE"; exit 1; }
-
         if [[ -f "$OUT_FASTQ" ]]; then
             echo "FASTQ already exists, skipping: $OUT_FASTQ" | tee -a "$MASTER_LOG"
             continue
         fi
+
+        if [[ ! -f "$SRA_FILE" ]]; then
+            echo "SRA file not found. Downloading with prefetch..." | tee -a "$MASTER_LOG"
+
+            prefetch "$RUN" \
+                --output-directory "$SRA_DIR" \
+                > "$LOG_DIR/${RUN}.prefetch.log" 2>&1
+        else
+            echo "SRA file already exists: $SRA_FILE" | tee -a "$MASTER_LOG"
+        fi
+
+        [[ -f "$SRA_FILE" ]] || {
+            echo "ERROR: SRA file still not found after prefetch: $SRA_FILE" | tee -a "$MASTER_LOG"
+            exit 1
+        }
+
+        echo "Converting SRA to FASTQ..." | tee -a "$MASTER_LOG"
 
         fasterq-dump "$SRA_FILE" \
             -O "$RAW_DIR" \
