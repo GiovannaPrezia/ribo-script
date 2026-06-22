@@ -25,6 +25,7 @@ dependencies:
   - samtools
   - bedtools
   - subread
+  - cutadapt
 
   # ====================================================
   # Data retrieval
@@ -73,6 +74,7 @@ dependencies:
   - bioconductor-genomicfeatures
   - bioconductor-genomicranges
   - bioconductor-genomicalignments
+  - bioconductor-biostrings
 
   - bioconductor-rsamtools
   - bioconductor-rtracklayer
