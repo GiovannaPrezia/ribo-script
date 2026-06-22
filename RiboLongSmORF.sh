@@ -1,12 +1,32 @@
 #!/bin/bash
 set -e
 
+if ! command -v conda >/dev/null 2>&1; then
+    echo "ERROR: Conda was not found in PATH."
+    echo "Please install Miniconda or Anaconda first."
+    exit 1
+fi
+
 CONFIG_FILE="${1:-config.yaml}"
 ENV_NAME="ribolongsmorf_env"
 
-echo "======================================"
-echo "       RiboLongSmORF Pipeline"
-echo "======================================"
+[[ -f "$CONFIG_FILE" ]] || { echo "ERROR: config file not found: $CONFIG_FILE"; exit 1; }
+[[ -f "environment.yml" ]] || { echo "ERROR: environment.yml not found."; exit 1; }
+[[ -f "ribolongsmorf_pipe.sh" ]] || { echo "ERROR: ribolongsmorf_pipe.sh not found."; exit 1; }
+
+[[ -f "scripts/setup/01_download_references.sh" ]] || { echo "ERROR: 01_download_references.sh not found."; exit 1; }
+[[ -f "scripts/setup/02_build_star_index.sh" ]] || { echo "ERROR: 02_build_star_index.sh not found."; exit 1; }
+
+
+cat << "EOF"
+
+============================================================
+                    RiboLongSmORF
+------------------------------------------------------------
+     Ribo-seq Processing and lncRNA-smORF Discovery
+============================================================
+
+EOF
 
 # ======================================
 # CONDA ENVIRONMENT
