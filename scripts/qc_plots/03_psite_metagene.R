@@ -184,17 +184,6 @@ write.table(
   row.names = FALSE
 )
 
-# =========================================================
-# COLORS
-# =========================================================
-
-day_colors <- c(
-  "D8" = "#2563EB",
-  "D10" = "#7C3AED",
-  "D18" = "#DC2626",
-  "D21" = "#059669",
-  "Unknown" = "gray40"
-)
 
 # =========================================================
 # PLOT
@@ -206,10 +195,7 @@ p_meta <- ggplot(
 ) +
   geom_line(linewidth = 0.5) +
   facet_grid(replicate ~ type) +
-  scale_color_manual(
-    values = day_colors,
-    drop = FALSE
-  ) +
+  scale_color_brewer(palette = "Set2") +
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme_classic(base_size = 14) +
   labs(
