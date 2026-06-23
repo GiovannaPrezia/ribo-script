@@ -1,76 +1,216 @@
-#!/bin/bash
+#!/usr/bin/env Rscript
 
-set -eu
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(stringr)
+  library(tibble)
+})
 
-PROJECT_ROOT="$1"
-PROJECT_NAME="$2"
+args <- commandArgs(trailingOnly = TRUE)
 
-RAW_DIR="$PROJECT_ROOT/02_fastq/ribo_seq"
-TRIM_DIR="$PROJECT_ROOT/03_trimmed/ribo_seq"
-CLEAN_DIR="$PROJECT_ROOT/04_cleaned/ribo_seq"
-STAR_QC_DIR="$PROJECT_ROOT/06_star_qc/ribo_seq"
-LOG_DIR="$PROJECT_ROOT/logs"
-OUTDIR="$PROJECT_ROOT/13_Report/tables"
+if (length(args) < 2) {
+  stop("Usage: Rscript 09_qc_master_table.R <project_root> <project_name>")
+}
 
-mkdir -p "$OUTDIR"
+project_root <- args[1]
+project_name <- args[2]
 
-OUTFILE="$OUTDIR/${PROJECT_NAME}_QC_master_table.tsv"
+raw_dir <- file.path(project_root, "02_fastq/ribo_seq")
+trim_dir <- file.path(project_root, "03_trimmed/ribo_seq")
+clean_dir <- file.path(project_root, "04_cleaned/ribo_seq")
+star_qc_dir <- file.path(project_root, "06_star_qc/ribo_seq")
+ribotricer_dir <- file.path(project_root, "10_Ribotricer")
+log_dir <- file.path(project_root, "logs")
+outdir <- file.path(project_root, "13_Report/tables")
 
-echo -e "Sample\tRun\tMode\tRaw_Reads\tRaw_Sequence_Length\tRaw_%GC\tTrimmed_Reads\t%Removed\tTrimmed_Sequence_Length\tTrimmed_%GC\tTrim_Info\tPost_N_PolyG_Reads\tPost_Contaminants_Reads\tRetention_After_Contaminants_%\tClean_%GC\tClean_Length\tClean_Info\tReads_Post_Contaminants\tUnique_Reads_STAR\tUnique_Mapping_%" > "$OUTFILE"
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-for RAW_FASTQ in "$RAW_DIR"/*.fastq.gz; do
+outfile <- file.path(outdir, paste0(project_name, "_QC_master_table.tsv"))
 
-    SAMPLE=$(basename "$RAW_FASTQ" .fastq.gz)
+count_fastq_reads <- function(fastq) {
+  if (!file.exists(fastq)) return(NA_real_)
+  as.numeric(system2("bash", c("-c", shQuote(paste0("zcat ", fastq, " | wc -l"))), stdout = TRUE)) / 4
+}
 
-    RUN=$(grep -R "$SAMPLE" "$PROJECT_ROOT/logs" 2>/dev/null | head -n 1 | awk '{print $2}' || true)
-    [[ -z "$RUN" ]] && RUN="NA"
+get_fastq_stats <- function(fastq) {
+  if (!file.exists(fastq)) {
+    return(tibble(Reads = NA, Length = NA, GC = NA))
+  }
 
-    RAW_STATS=$(seqkit stats -T "$RAW_FASTQ" | awk 'NR==2')
-    RAW_READS=$(echo "$RAW_STATS" | awk '{print $4}')
-    RAW_LEN=$(echo "$RAW_STATS" | awk '{print $7}')
-    RAW_GC=$(echo "$RAW_STATS" | awk '{print $8}')
+  cmd <- paste("seqkit stats -T", shQuote(fastq))
+  x <- read_tsv(pipe(cmd), show_col_types = FALSE)
 
-    TRIM_FASTQ="$TRIM_DIR/${SAMPLE}.trim.fastq.gz"
-    TRIM_STATS=$(seqkit stats -T "$TRIM_FASTQ" | awk 'NR==2')
-    TRIM_READS=$(echo "$TRIM_STATS" | awk '{print $4}')
-    TRIM_LEN=$(echo "$TRIM_STATS" | awk '{print $7}')
-    TRIM_GC=$(echo "$TRIM_STATS" | awk '{print $8}')
+  tibble(
+    Reads = x$num_seqs[1],
+    Length = x$avg_len[1],
+    GC = if ("%GC" %in% colnames(x)) x$`%GC`[1] else NA
+  )
+}
 
-    CUTADAPT_LOG="$LOG_DIR/${SAMPLE}.cutadapt.log"
-    REMOVED=$(grep "Reads written" "$CUTADAPT_LOG" | awk -F'[()]' '{print $2}' | sed 's/%//' || echo "NA")
-    TRIM_INFO="Cutadapt_-u3_polyA_A10_min17"
+extract_star_value <- function(file, pattern) {
+  if (!file.exists(file)) return(NA_character_)
 
-    POST_N_POLYG=$(zcat "$CLEAN_DIR/${SAMPLE}.trim.noN.noPolyG.all_lengths.fastq.gz" | awk 'END{print NR/4}')
+  lines <- readLines(file, warn = FALSE)
+  line <- lines[str_detect(lines, fixed(pattern))]
 
-    for MODE in all_lengths 28_36; do
+  if (length(line) == 0) return(NA_character_)
 
-        CLEAN_FASTQ="$CLEAN_DIR/$MODE/${SAMPLE}.${MODE}.clean.fastq.gz"
-        BOWTIE_LOG="$LOG_DIR/${SAMPLE}.${MODE}.bowtie.log"
-        STAR_LOG="$STAR_QC_DIR/${SAMPLE}.${MODE}_Log.final.out"
+  str_trim(str_split(line[1], "\\|", simplify = TRUE)[, 2])
+}
 
-        if [[ ! -f "$CLEAN_FASTQ" || ! -f "$BOWTIE_LOG" || ! -f "$STAR_LOG" ]]; then
-            continue
-        fi
+parse_bowtie <- function(file) {
+  if (!file.exists(file)) {
+    return(tibble(
+      Post_Contaminant_Reads = NA,
+      Retention_Percent = NA
+    ))
+  }
 
-        CLEAN_STATS=$(seqkit stats -T "$CLEAN_FASTQ" | awk 'NR==2')
-        CLEAN_READS=$(echo "$CLEAN_STATS" | awk '{print $4}')
-        CLEAN_LEN=$(echo "$CLEAN_STATS" | awk '{print $7}')
-        CLEAN_GC=$(echo "$CLEAN_STATS" | awk '{print $8}')
+  lines <- readLines(file, warn = FALSE)
 
-        PROCESSED=$(grep "# reads processed:" "$BOWTIE_LOG" | awk '{print $4}')
-        POST_CONTAM=$(grep "# reads that failed to align:" "$BOWTIE_LOG" | awk '{print $7}')
-        RETENTION=$(awk -v clean="$POST_CONTAM" -v total="$PROCESSED" 'BEGIN{printf "%.2f", clean/total*100}')
+  processed <- lines[str_detect(lines, "# reads processed:")] |>
+    str_extract("[0-9]+") |>
+    as.numeric()
 
-        INPUT_STAR=$(grep "Number of input reads" "$STAR_LOG" | awk -F'|' '{gsub(/ /,"",$2); print $2}')
-        UNIQUE_READS=$(grep "Uniquely mapped reads number" "$STAR_LOG" | awk -F'|' '{gsub(/ /,"",$2); print $2}')
-        UNIQUE_PCT=$(grep "Uniquely mapped reads %" "$STAR_LOG" | awk -F'|' '{gsub(/ /,"",$2); print $2}')
+  clean <- lines[str_detect(lines, "# reads that failed to align:")] |>
+    str_extract("[0-9]+") |>
+    as.numeric()
 
-        CLEAN_INFO="noN_noPolyG_Bowtie_contaminant_filter"
+  tibble(
+    Post_Contaminant_Reads = clean,
+    Retention_Percent = round(clean / processed * 100, 2)
+  )
+}
 
-        echo -e "${SAMPLE}\t${RUN}\t${MODE}\t${RAW_READS}\t${RAW_LEN}\t${RAW_GC}\t${TRIM_READS}\t${REMOVED}\t${TRIM_LEN}\t${TRIM_GC}\t${TRIM_INFO}\t${POST_N_POLYG}\t${POST_CONTAM}\t${RETENTION}\t${CLEAN_GC}\t${CLEAN_LEN}\t${CLEAN_INFO}\t${INPUT_STAR}\t${UNIQUE_READS}\t${UNIQUE_PCT}" >> "$OUTFILE"
+parse_cutadapt_removed <- function(file) {
+  if (!file.exists(file)) return(NA_character_)
 
-    done
-done
+  lines <- readLines(file, warn = FALSE)
+  line <- lines[str_detect(lines, "Reads written")]
 
-echo "QC master table saved:"
-echo "$OUTFILE"
+  if (length(line) == 0) return(NA_character_)
+
+  pct <- str_match(line[1], "\\(([^%]+)%\\)")[, 2]
+  pct
+}
+
+get_ribotricer_counts <- function(ribotricer_dir, sample, mode) {
+  mode_dir <- file.path(ribotricer_dir, mode)
+
+  if (!dir.exists(mode_dir)) {
+    return(tibble(
+      ORFs_detected = NA,
+      smORFs_detected = NA,
+      lncRNA_smORFs = NA,
+      High_confidence_smORFs = NA
+    ))
+  }
+
+  ribo_files <- list.files(mode_dir, pattern = sample, full.names = TRUE)
+
+  orf_file <- ribo_files[str_detect(basename(ribo_files), "translating|translated|ORFs")]
+  smorf_file <- ribo_files[str_detect(basename(ribo_files), "smorfs_20_150aa")]
+  lncrna_file <- ribo_files[str_detect(basename(ribo_files), "lncrna_smorfs")]
+  ranked_file <- ribo_files[str_detect(basename(ribo_files), "ranked_lncrna_smorfs")]
+
+  count_rows <- function(files) {
+    if (length(files) == 0 || !file.exists(files[1])) return(NA_integer_)
+    nrow(read_tsv(files[1], show_col_types = FALSE))
+  }
+
+  tibble(
+    ORFs_detected = count_rows(orf_file),
+    smORFs_detected = count_rows(smorf_file),
+    lncRNA_smORFs = count_rows(lncrna_file),
+    High_confidence_smORFs = count_rows(ranked_file)
+  )
+}
+
+raw_fastqs <- list.files(raw_dir, pattern = "\\.fastq\\.gz$", full.names = TRUE)
+
+if (length(raw_fastqs) == 0) {
+  stop("No raw FASTQ files found in: ", raw_dir)
+}
+
+rows <- list()
+
+for (raw_fastq in raw_fastqs) {
+
+  sample <- basename(raw_fastq) |>
+    str_remove("\\.fastq\\.gz$")
+
+  run <- "NA"
+
+  raw_stats <- get_fastq_stats(raw_fastq)
+
+  trimmed_fastq <- file.path(trim_dir, paste0(sample, ".trim.fastq.gz"))
+  trimmed_stats <- get_fastq_stats(trimmed_fastq)
+
+  cutadapt_log <- file.path(log_dir, paste0(sample, ".cutadapt.log"))
+  percent_removed <- parse_cutadapt_removed(cutadapt_log)
+
+  post_n_polyg_fastq <- file.path(
+    clean_dir,
+    paste0(sample, ".trim.noN.noPolyG.all_lengths.fastq.gz")
+  )
+
+  post_n_polyg_reads <- count_fastq_reads(post_n_polyg_fastq)
+
+  for (mode in c("all_lengths", "28_36")) {
+
+    clean_fastq <- file.path(
+      clean_dir,
+      mode,
+      paste0(sample, ".", mode, ".clean.fastq.gz")
+    )
+
+    bowtie_log <- file.path(log_dir, paste0(sample, ".", mode, ".bowtie.log"))
+    star_log <- file.path(star_qc_dir, paste0(sample, ".", mode, "_Log.final.out"))
+
+    clean_stats <- get_fastq_stats(clean_fastq)
+    bowtie_stats <- parse_bowtie(bowtie_log)
+
+    ribo_stats <- get_ribotricer_counts(ribotricer_dir, sample, mode)
+
+    rows[[length(rows) + 1]] <- tibble(
+      Sample = sample,
+      Run = run,
+      Mode = mode,
+
+      Raw_Reads = raw_stats$Reads,
+      Raw_Length = raw_stats$Length,
+      Raw_GC = raw_stats$GC,
+
+      Trimmed_Reads = trimmed_stats$Reads,
+      Percent_Removed = percent_removed,
+      Trimmed_Length = trimmed_stats$Length,
+      Trimmed_GC = trimmed_stats$GC,
+      Trim_Info = "Cutadapt_-u3_polyA_A10_min17",
+
+      Post_N_PolyG_Reads = post_n_polyg_reads,
+      Post_Contaminant_Reads = bowtie_stats$Post_Contaminant_Reads,
+      Retention_Percent = bowtie_stats$Retention_Percent,
+
+      Clean_GC = clean_stats$GC,
+      Clean_Length = clean_stats$Length,
+      Clean_Info = "noN_noPolyG_Bowtie_contaminant_filter",
+
+      Input_STAR = extract_star_value(star_log, "Number of input reads"),
+      Unique_Reads_STAR = extract_star_value(star_log, "Uniquely mapped reads number"),
+      Unique_Mapping_Percent = extract_star_value(star_log, "Uniquely mapped reads %"),
+
+      ORFs_detected = ribo_stats$ORFs_detected,
+      smORFs_detected = ribo_stats$smORFs_detected,
+      lncRNA_smORFs = ribo_stats$lncRNA_smORFs,
+      High_confidence_smORFs = ribo_stats$High_confidence_smORFs
+    )
+  }
+}
+
+qc_table <- bind_rows(rows)
+
+write_tsv(qc_table, outfile)
+
+cat("QC master table saved:\n")
+cat(outfile, "\n")
