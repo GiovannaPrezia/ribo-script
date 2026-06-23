@@ -106,8 +106,8 @@ echo ""
 echo "[3/4] Building STAR genome index..."
 echo ""
 
-conda run -n "$ENV_NAME" \
-    bash scripts/setup/02_build_star_index.sh "$CONFIG_FILE"
+conda run --no-capture-output -n "$ENV_NAME" \
+    bash ribolongsmorf_pipe.sh "$CONFIG_FILE"
 
 echo ""
 echo "✓ STAR index ready."
