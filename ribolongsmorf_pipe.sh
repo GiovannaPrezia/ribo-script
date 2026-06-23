@@ -165,6 +165,8 @@ elif [[ "$MODE" == "2" ]]; then
     echo "10 - Ribotricer lncRNA-smORF discovery"
     echo "11 - Final QC report"
     echo "12 - Complete pipeline"
+    echo ""
+    
 
     read -p "Select module: " MODULE
 else
@@ -594,6 +596,9 @@ run_final_report () {
 
     echo "Generating final project report..."
 
+    Rscript "$SCRIPT_DIR/reports/09_qc_master_table.R" \
+        "$BASE_DIR" \
+        "$PROJECT_NAME"
 }
 
 if [[ "$MODULE" == "0" || "$MODULE" == "12" ]]; then
