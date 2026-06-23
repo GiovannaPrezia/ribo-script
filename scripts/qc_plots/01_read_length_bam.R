@@ -8,16 +8,12 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-# =========================================================
-# ARGS
-# =========================================================
-
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) < 2) {
   stop(
     "Usage: Rscript 01_read_length_bam.R <bam_dir> <outdir> [project_name]\n",
-    "Example: Rscript 01_read_length_bam.R 05_alignment/ribo_seq/all_lengths 12_QC_Figures/all_lengths PRJEB29208"
+    "Example: Rscript 01_read_length_bam.R 05_alignment/ribo_seq/all_lengths 12_QC_Figures/all_lengths PRJNA544411"
   )
 }
 
@@ -26,10 +22,6 @@ outdir <- args[2]
 project_name <- ifelse(length(args) >= 3, args[3], "RiboSeq")
 
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-
-# =========================================================
-# BAM DISCOVERY
-# =========================================================
 
 bam_pattern <- "_Aligned.sortedByCoord.out.bam$"
 
@@ -52,34 +44,21 @@ meta <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# =========================================================
-# METADATA
-# =========================================================
-
 meta$day <- str_extract(meta$sample, "DAY_?[0-9]+|D[0-9]+")
 meta$day <- str_replace(meta$day, "DAY_", "D")
-
-if (any(is.na(meta$day))) {
-  warning("Could not extract day from some sample names. Setting day = 'Unknown'.")
-  meta$day[is.na(meta$day)] <- "Unknown"
-}
+meta$day[is.na(meta$day)] <- "Unknown"
 
 meta$replicate <- case_when(
   str_detect(meta$sample, "rep1|Rep1|R1") ~ "Rep1",
   str_detect(meta$sample, "rep2|Rep2|R2") ~ "Rep2",
+  str_detect(meta$sample, "rep3|Rep3|R3") ~ "Rep3",
   TRUE ~ "Rep"
 )
 
-# =========================================================
-# READ LENGTH EXTRACTION
-# =========================================================
-
 get_lengths <- function(bam, sample, day, replicate) {
-
   cat("Processing:", sample, "\n")
 
   aln <- readGAlignments(bam)
-
   read_lengths <- qwidth(aln)
 
   data.frame(
@@ -114,8 +93,37 @@ write.table(
 df_sum <- df %>%
   group_by(sample, day, replicate, length) %>%
   summarise(n = n(), .groups = "drop") %>%
-  group_by(sample) %>%
-  mutate(percent = n / sum(n) * 100)
+  group_by(sample, day, replicate) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  ungroup()
+
+unique_days <- sort(unique(df_sum$day))
+
+if (length(unique_days) == 1) {
+  df_sum <- df_sum %>%
+    mutate(plot_label = replicate)
+
+  plot_title <- paste0(
+    "Read length distribution — ",
+    project_name,
+    " (",
+    unique_days,
+    ")"
+  )
+
+  legend_title <- "Replicate"
+
+} else {
+  df_sum <- df_sum %>%
+    mutate(plot_label = paste(day, replicate))
+
+  plot_title <- paste0(
+    "Read length distribution — ",
+    project_name
+  )
+
+  legend_title <- "Sample"
+}
 
 write.table(
   df_sum,
@@ -125,23 +133,19 @@ write.table(
   row.names = FALSE
 )
 
-# =========================================================
-# PLOT
-# =========================================================
-
 p_len <- ggplot(
   df_sum,
-  aes(x = length, y = percent, color = sample)
+  aes(x = length, y = percent, color = plot_label)
 ) +
   geom_line(linewidth = 1) +
   coord_cartesian(xlim = c(20, 40)) +
   scale_color_brewer(palette = "Set2") +
   theme_classic(base_size = 14) +
   labs(
-    title = "Read length distribution",
+    title = plot_title,
     x = "Read length (nt)",
     y = "% reads",
-    color = "Sample"
+    color = legend_title
   )
 
 ggsave(
