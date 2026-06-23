@@ -98,20 +98,12 @@ write_tsv(
   file.path(outdir, paste0(project_name, "_PCA_coordinates.tsv"))
 )
 
-day_colors <- c(
-  "D8" = "#2563EB",
-  "D10" = "#7C3AED",
-  "D18" = "#DC2626",
-  "D21" = "#059669",
-  "Unknown" = "gray40"
-)
-
 p <- ggplot(
   pca_df,
   aes(x = PC1, y = PC2, color = day, shape = replicate)
 ) +
   geom_point(size = 5, alpha = 0.9) +
-  scale_color_manual(values = day_colors, drop = FALSE) +
+  scale_color_brewer(palette = "Set2") +
   theme_minimal(base_size = 18) +
   labs(
     title = "PCA - Ribo-seq",
