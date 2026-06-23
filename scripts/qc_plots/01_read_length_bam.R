@@ -112,9 +112,9 @@ write.table(
 )
 
 df_sum <- df %>%
-  group_by(replicate, day, length) %>%
+  group_by(sample, day, replicate, length) %>%
   summarise(n = n(), .groups = "drop") %>%
-  group_by(replicate, day) %>%
+  group_by(sample) %>%
   mutate(percent = n / sum(n) * 100)
 
 write.table(
@@ -131,10 +131,9 @@ write.table(
 
 p_len <- ggplot(
   df_sum,
-  aes(x = length, y = percent, color = day)
+  aes(x = length, y = percent, color = sample)
 ) +
   geom_line(linewidth = 1) +
-  facet_wrap(~replicate) +
   coord_cartesian(xlim = c(20, 40)) +
   scale_color_brewer(palette = "Set2") +
   theme_classic(base_size = 14) +
@@ -142,7 +141,7 @@ p_len <- ggplot(
     title = "Read length distribution",
     x = "Read length (nt)",
     y = "% reads",
-    color = "day"
+    color = "Sample"
   )
 
 ggsave(
