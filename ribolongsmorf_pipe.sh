@@ -126,10 +126,17 @@ mkdir -p \
 [[ -f "$STAR_INDEX/Genome" ]] || { echo "ERROR: STAR index not found: $STAR_INDEX"; exit 1; }
 [[ -f "${RNA_DICT}.1.ebwt" ]] || { echo "ERROR: Bowtie contaminant index not found: ${RNA_DICT}.1.ebwt"; exit 1; }
 
-echo "======================================"
-echo "RiboLongSmORF Pipeline"
-echo "Project: $PROJECT_NAME"
-echo "======================================"
+echo ""
+echo "============================================================"
+echo "                    RiboLongSmORF"
+echo "============================================================"
+echo ""
+printf "%-13s: %s\n" "Project" "$PROJECT_NAME"
+printf "%-13s: %s\n" "Description" "$PROJECT_DESCRIPTION"
+printf "%-13s: %s\n" "Threads" "$THREADS"
+printf "%-13s: %s\n" "Size Modes" "$(printf "%s | " "${SIZE_MODES[@]}" | sed 's/ | $//')"
+echo ""
+echo "============================================================"
 echo ""
 echo "1 - Run complete pipeline"
 echo "2 - Run step-by-step mode"
@@ -165,15 +172,15 @@ else
 fi
 
 MASTER_LOG="$LOG_DIR/${PROJECT_NAME}_pipeline_master.log"
+START_TIME=$(date "+%Y-%m-%d %H:%M:%S")
 
-echo "==================================================" | tee "$MASTER_LOG"
-echo "Pipeline started at: $(date)" | tee -a "$MASTER_LOG"
-echo "Project: $PROJECT_NAME" | tee -a "$MASTER_LOG"
-echo "Description: $PROJECT_DESCRIPTION" | tee -a "$MASTER_LOG"
-echo "Size modes: ${SIZE_MODES[*]}" | tee -a "$MASTER_LOG"
-echo "Mode: $PIPELINE_MODE" | tee -a "$MASTER_LOG"
-echo "Module: $MODULE" | tee -a "$MASTER_LOG"
-echo "==================================================" | tee -a "$MASTER_LOG"
+echo "" | tee "$MASTER_LOG"
+echo "============================================================" | tee -a "$MASTER_LOG"
+printf "%-13s: %s\n" "Pipeline Mode" "$PIPELINE_MODE" | tee -a "$MASTER_LOG"
+printf "%-13s: %s\n" "Module" "$MODULE" | tee -a "$MASTER_LOG"
+printf "%-13s: %s\n" "Started" "$START_TIME" | tee -a "$MASTER_LOG"
+echo "============================================================" | tee -a "$MASTER_LOG"
+echo "" | tee -a "$MASTER_LOG"
 
 pause_step () {
     if [[ "$PIPELINE_MODE" == "interactive" ]]; then
