@@ -166,8 +166,11 @@ def add_ranking(df):
         df["phase_component"] +
         df["read_component"]
     )
-
+    
+    df["high_confidence"] = df["ranking_score"] > 0
+    
     return df.sort_values("ranking_score", ascending=False)
+
 
 
 def main():
