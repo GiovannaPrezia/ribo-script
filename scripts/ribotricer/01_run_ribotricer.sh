@@ -17,7 +17,7 @@ for part in sys.argv[2].split("."):
 print(value)
 PY
 }
-
+PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROJECT_ROOT=$(get_yaml "project_root")
 THREADS=$(get_yaml "threads")
 
@@ -96,6 +96,21 @@ for MODE in all_lengths 28_36; do
             --prefix "$OUT_PREFIX" \
             > "$LOG_DIR/${SAMPLE}.ribotricer.log" 2>&1
 
+
+        RIBOTRICER_OUTPUT="${OUT_PREFIX}_translating_ORFs.tsv"
+
+        if [[ -f "$RIBOTRICER_OUTPUT" ]]; then
+            echo "Processing Ribotricer results: $SAMPLE"
+
+            python "$PIPELINE_DIR/scripts/ribotricer/02_process_ribotricer_results.py" \
+                "$RIBOTRICER_OUTPUT" \
+                "$GTF" \
+                "$OUT_PREFIX" \
+                "$SAMPLE"
+
+        else
+            echo "WARNING: Ribotricer output not found for $SAMPLE: $RIBOTRICER_OUTPUT"
+        fi
     done
 done
 
