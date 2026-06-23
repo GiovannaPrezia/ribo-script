@@ -146,7 +146,7 @@ read -p "Select option: " MODE
 
 if [[ "$MODE" == "1" ]]; then
     PIPELINE_MODE="continuous"
-    MODULE="10"
+    MODULE="12"
 elif [[ "$MODE" == "2" ]]; then
     PIPELINE_MODE="interactive"
 
@@ -161,9 +161,10 @@ elif [[ "$MODE" == "2" ]]; then
     echo "6 - FastQC on cleaned reads"
     echo "7 - STAR alignment"
     echo "8 - featureCounts"
-    echo "9 - MultiQC + final QC report"
-    echo "10 - Complete pipeline"
-    echo ""
+    echo "9  - MultiQC + QC Figures"
+    echo "10 - Ribotricer lncRNA-smORF discovery"
+    echo "11 - Final QC report"
+    echo "12 - Complete pipeline"
 
     read -p "Select module: " MODULE
 else
@@ -581,7 +582,21 @@ run_riboseq_qc_figures () {
     Rscript "$SCRIPT_DIR/qc_plots/08_contaminant_summary.R" "$LOG_DIR" "$FIG_DIR" "$PROJECT_NAME"
 }
 
-if [[ "$MODULE" == "0" || "$MODULE" == "10" ]]; then
+run_ribotricer () {
+
+    echo "Running Ribotricer lncRNA-smORF discovery..."
+
+    bash "$SCRIPT_DIR/ribotricer/01_run_ribotricer.sh" "$CONFIG_FILE"
+
+}
+
+run_final_report () {
+
+    echo "Generating final project report..."
+
+}
+
+if [[ "$MODULE" == "0" || "$MODULE" == "12" ]]; then
     run_sra_conversion
     pause_step
 fi
@@ -591,7 +606,7 @@ for SAMPLE in "${SAMPLES[@]}"; do
     echo "Sample: $SAMPLE" | tee -a "$MASTER_LOG"
     echo "======================================" | tee -a "$MASTER_LOG"
 
-    case "$MODULE" in
+       case "$MODULE" in
         1) run_fastqc_raw "$SAMPLE"; pause_step ;;
         2) run_cutadapt "$SAMPLE"; pause_step ;;
         3) run_qc_trimmed "$SAMPLE"; pause_step ;;
@@ -600,7 +615,7 @@ for SAMPLE in "${SAMPLES[@]}"; do
         6) run_fastqc_clean "$SAMPLE"; pause_step ;;
         7) run_star "$SAMPLE"; pause_step ;;
         8) run_featurecounts "$SAMPLE"; pause_step ;;
-        10)
+        12)
             run_fastqc_raw "$SAMPLE"; pause_step
             run_cutadapt "$SAMPLE"; pause_step
             run_qc_trimmed "$SAMPLE"; pause_step
@@ -610,14 +625,22 @@ for SAMPLE in "${SAMPLES[@]}"; do
             run_star "$SAMPLE"; pause_step
             run_featurecounts "$SAMPLE"; pause_step
             ;;
-        0|9) ;;
+        0|9|10|11) ;;
         *) echo "Invalid module."; exit 1 ;;
     esac
 done
 
-if [[ "$MODULE" == "9" || "$MODULE" == "10" ]]; then
+if [[ "$MODULE" == "9" || "$MODULE" == "12" ]]; then
     run_report
     run_riboseq_qc_figures
+fi
+
+if [[ "$MODULE" == "10" || "$MODULE" == "12" ]]; then
+    run_ribotricer
+fi
+
+if [[ "$MODULE" == "11" || "$MODULE" == "12" ]]; then
+    run_final_report
 fi
 
 echo "Finished at: $(date)" | tee -a "$MASTER_LOG"
