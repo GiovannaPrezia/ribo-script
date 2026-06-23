@@ -103,7 +103,7 @@ echo "✓ Reference setup completed."
 # ==========================================================
 
 echo ""
-echo "[3/4] Building STAR genome index..."
+echo "[3/4] Building STAR genome index (this may take several minutes)..."
 echo ""
 
 conda run --no-capture-output -n "$ENV_NAME" \
