@@ -92,7 +92,7 @@ echo ""
 echo "[2/4] Downloading reference files..."
 echo ""
 
-conda run -n "$ENV_NAME" \
+conda run --no-capture-output -n "$ENV_NAME" \
     bash scripts/setup/01_download_references.sh "$CONFIG_FILE"
 
 echo ""
@@ -103,11 +103,12 @@ echo "✓ Reference setup completed."
 # ==========================================================
 
 echo ""
-echo "[3/4] Building STAR genome index (this may take several minutes)..."
+echo "[3/4] Building STAR genome index..."
+echo "      This step can take 30-90+ minutes."
 echo ""
 
 conda run --no-capture-output -n "$ENV_NAME" \
-    bash ribolongsmorf_pipe.sh "$CONFIG_FILE"
+    bash scripts/setup/02_build_star_index.sh "$CONFIG_FILE"
 
 echo ""
 echo "✓ STAR index ready."
@@ -120,7 +121,7 @@ echo ""
 echo "[4/4] Starting RiboLongSmORF pipeline..."
 echo ""
 
-conda run -n "$ENV_NAME" \
+conda run --no-capture-output -n "$ENV_NAME" \
     bash ribolongsmorf_pipe.sh "$CONFIG_FILE"
 
 echo ""
