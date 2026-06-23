@@ -126,18 +126,6 @@ write.table(
 )
 
 # =========================================================
-# COLORS
-# =========================================================
-
-day_colors <- c(
-  "D8" = "#2563EB",
-  "D10" = "#7C3AED",
-  "D18" = "#DC2626",
-  "D21" = "#059669",
-  "Unknown" = "gray40"
-)
-
-# =========================================================
 # PLOT
 # =========================================================
 
@@ -148,10 +136,7 @@ p_len <- ggplot(
   geom_line(linewidth = 1) +
   facet_wrap(~replicate) +
   coord_cartesian(xlim = c(20, 40)) +
-  scale_color_manual(
-    values = day_colors,
-    drop = FALSE
-  ) +
+  scale_color_brewer(palette = "Set2") +
   theme_classic(base_size = 14) +
   labs(
     title = "Read length distribution",
