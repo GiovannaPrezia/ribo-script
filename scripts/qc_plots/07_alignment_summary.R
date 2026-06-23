@@ -28,14 +28,6 @@ dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 # PALETTE
 # =========================================================
 
-day_colors <- c(
-  "D8" = "#2563EB",
-  "D10" = "#7C3AED",
-  "D18" = "#DC2626",
-  "D21" = "#059669",
-  "Unknown" = "gray40"
-)
-
 metric_colors <- c(
   "Unique" = "#7C3AED",
   "Multimapping" = "#F59E0B",
@@ -153,7 +145,7 @@ p_unique <- ggplot(
 ) +
   geom_col(width = 0.75) +
   facet_wrap(~mode, scales = "free_x") +
-  scale_fill_manual(values = day_colors, drop = FALSE) +
+  scale_fill_viridis_d() +
   theme_classic(base_size = 13) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
