@@ -43,6 +43,26 @@ ENV_NAME="ribolongsmorf_env"
     exit 1
 }
 
+[[ -f "scripts/ribotricer/01_run_ribotricer.sh" ]] || {
+    echo "ERROR: 01_run_ribotricer.sh not found."
+
+    echo ""
+    echo "Please verify:"
+    echo "scripts/ribotricer/01_run_ribotricer.sh"
+
+    exit 1
+}
+
+[[ -f "scripts/ribotricer/02_process_ribotricer_results.py" ]] || {
+    echo "ERROR: 02_process_ribotricer_results.py not found."
+
+    echo ""
+    echo "Please verify:"
+    echo "scripts/ribotricer/02_process_ribotricer_results.py"
+
+    exit 1
+}
+
 # ==========================================================
 # HEADER
 # ==========================================================
