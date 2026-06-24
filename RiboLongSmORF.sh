@@ -73,6 +73,16 @@ ENV_NAME="ribolongsmorf_env"
     exit 1
 }
 
+[[ -f "scripts/ribotricer/03_high_confidence_candidates.py" ]] || {
+    echo "ERROR: 03_high_confidence_candidates.py not found."
+
+    echo ""
+    echo "Please verify:"
+    echo "scripts/ribotricer/03_high_confidence_candidates.py"
+
+    exit 1
+}
+
 # ==========================================================
 # HEADER
 # ==========================================================
