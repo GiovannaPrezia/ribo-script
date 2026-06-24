@@ -83,6 +83,16 @@ ENV_NAME="ribolongsmorf_env"
     exit 1
 }
 
+[[ -f "scripts/reports/09_qc_master_table.R" ]] || {
+    echo "ERROR: 09_qc_master_table.R not found."
+
+    echo ""
+    echo "Please verify:"
+    echo "scripts/reports/09_qc_master_table.R"
+
+    exit 1
+}
+
 # ==========================================================
 # HEADER
 # ==========================================================
