@@ -210,7 +210,6 @@ def main():
         how="left"
     )
 
-    print(annotated.columns.tolist())
 
     annotated_file = f"{output_prefix}_smorfs_annotated.tsv"
     annotated.to_csv(annotated_file, sep="\t", index=False)
@@ -229,10 +228,9 @@ def main():
         "non_coding"
     }
 
-    gene_type_col = "gene_type"
+    gene_type_col = "gene_type_y"
 
-    if gene_type_col not in annotated.columns:
-        gene_type_col = "transcript_type"
+    print(f"Using biotype column for lncRNA filtering: {gene_type_col}")
 
     lncrna_smorfs = annotated[
         annotated[gene_type_col].isin(lnc_types)
