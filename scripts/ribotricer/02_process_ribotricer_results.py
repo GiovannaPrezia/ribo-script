@@ -210,6 +210,8 @@ def main():
         how="left"
     )
 
+    print(annotated.columns.tolist())
+
     annotated_file = f"{output_prefix}_smorfs_annotated.tsv"
     annotated.to_csv(annotated_file, sep="\t", index=False)
 
