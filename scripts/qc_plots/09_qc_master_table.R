@@ -112,7 +112,7 @@ get_ribotricer_counts <- function(ribotricer_dir, sample, mode) {
   orf_file <- ribo_files[str_detect(basename(ribo_files), "translating|translated|ORFs")]
   smorf_file <- ribo_files[str_detect(basename(ribo_files), "smorfs_20_150aa")]
   lncrna_file <- ribo_files[str_detect(basename(ribo_files), "lncrna_smorfs")]
-  ranked_file <- ribo_files[str_detect(basename(ribo_files), "ranked_lncrna_smorfs")]
+  hc_file <- ribo_files[str_detect(basename(ribo_files), "high_confidence_candidates")]
 
   count_rows <- function(files) {
     if (length(files) == 0 || !file.exists(files[1])) return(NA_integer_)
@@ -123,7 +123,7 @@ get_ribotricer_counts <- function(ribotricer_dir, sample, mode) {
     ORFs_detected = count_rows(orf_file),
     smORFs_detected = count_rows(smorf_file),
     lncRNA_smORFs = count_rows(lncrna_file),
-    High_confidence_smORFs = count_rows(ranked_file)
+    High_confidence_smORFs = count_rows(hc_file)
   )
 }
 
