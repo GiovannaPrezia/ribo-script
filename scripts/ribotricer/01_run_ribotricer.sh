@@ -80,30 +80,42 @@ for MODE in all_lengths 28_36; do
 
         [[ -f "$BAM" ]] || continue
 
-        SAMPLE=$(basename "$BAM" "_Aligned.sortedByCoord.out.bam")
-        OUT_PREFIX="$OUT_MODE_DIR/$SAMPLE"
+       SAMPLE=$(basename "$BAM" "_Aligned.sortedByCoord.out.bam")
+OUT_PREFIX="$OUT_MODE_DIR/$SAMPLE"
 
-        echo "Ribotricer detect-orfs: $SAMPLE"
+RIBOTRICER_OUTPUT="${OUT_PREFIX}_translating_ORFs.tsv"
 
-        ribotricer detect-orfs \
-            --ribotricer_index "$CANDIDATE_ORFS" \
-            --bam "$BAM" \
-            --prefix "$OUT_PREFIX" \
-            > "$LOG_DIR/${SAMPLE}.ribotricer.log" 2>&1
+if [[ ! -f "$RIBOTRICER_OUTPUT" ]]; then
 
-        RIBOTRICER_OUTPUT="${OUT_PREFIX}_translating_ORFs.tsv"
+    echo "Ribotricer detect-orfs: $SAMPLE"
 
-        if [[ -f "$RIBOTRICER_OUTPUT" ]]; then
-            echo "Processing Ribotricer results: $SAMPLE"
+    ribotricer detect-orfs \
+        --ribotricer_index "$CANDIDATE_ORFS" \
+        --bam "$BAM" \
+        --prefix "$OUT_PREFIX" \
+        > "$LOG_DIR/${SAMPLE}.ribotricer.log" 2>&1
 
-            python "$PIPELINE_DIR/scripts/ribotricer/02_process_ribotricer_results.py" \
-                "$RIBOTRICER_OUTPUT" \
-                "$GTF" \
-                "$OUT_PREFIX" \
-                "$SAMPLE"
-        else
-            echo "WARNING: Ribotricer output not found for $SAMPLE: $RIBOTRICER_OUTPUT"
-        fi
+else
+
+    echo "Ribotricer output already exists, skipping detect-orfs: $SAMPLE"
+
+fi
+
+if [[ -f "$RIBOTRICER_OUTPUT" ]]; then
+
+    echo "Processing Ribotricer results: $SAMPLE"
+
+    python "$PIPELINE_DIR/scripts/ribotricer/02_process_ribotricer_results.py" \
+        "$RIBOTRICER_OUTPUT" \
+        "$GTF" \
+        "$OUT_PREFIX" \
+        "$SAMPLE"
+
+else
+
+    echo "WARNING: Ribotricer output not found for $SAMPLE: $RIBOTRICER_OUTPUT"
+
+fi
 
     done
 
