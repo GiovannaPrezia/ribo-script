@@ -185,14 +185,22 @@ printf "%-13s: %s\n" "Started" "$START_TIME" | tee -a "$MASTER_LOG"
 echo "============================================================" | tee -a "$MASTER_LOG"
 echo "" | tee -a "$MASTER_LOG"
 
+CONTINUE_ALL=false
+
 pause_step () {
+
     if [[ "$PIPELINE_MODE" == "interactive" ]]; then
         echo ""
         while true; do
             read -p "Continue (c), switch to continuous mode (s), pause for manual adjustment (r), or quit (q)? " ANSWER
             case "$ANSWER" in
                 c|C) break ;;
-                s|S) PIPELINE_MODE="continuous"; echo "Continuous mode activated."; break ;;
+                s|S)
+    PIPELINE_MODE="continuous"
+    CONTINUE_ALL=true
+    echo "Continuous mode activated."
+    break
+    ;;
                 r|R) echo "Pipeline paused for manual adjustment."; exit 0 ;;
                 q|Q) echo "Pipeline stopped."; exit 0 ;;
                 *) echo "Invalid answer. Use c, s, r, or q." ;;
@@ -611,7 +619,13 @@ for SAMPLE in "${SAMPLES[@]}"; do
     echo "Sample: $SAMPLE" | tee -a "$MASTER_LOG"
     echo "======================================" | tee -a "$MASTER_LOG"
 
-       case "$MODULE" in
+       ACTIVE_MODULE="$MODULE"
+
+        if [[ "$CONTINUE_ALL" == true ]]; then
+            ACTIVE_MODULE="12"
+        fi
+
+        case "$ACTIVE_MODULE" in
         1) run_fastqc_raw "$SAMPLE"; pause_step ;;
         2) run_cutadapt "$SAMPLE"; pause_step ;;
         3) run_qc_trimmed "$SAMPLE"; pause_step ;;
