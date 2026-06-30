@@ -596,7 +596,7 @@ run_final_report () {
 
     echo "Generating final project report..."
 
-    Rscript "$SCRIPT_DIR/qc_plots/09_qc_master_table.R"" \
+    Rscript "$SCRIPT_DIR/qc_plots/09_qc_master_table.R" \
         "$BASE_DIR" \
         "$PROJECT_NAME"
 }
