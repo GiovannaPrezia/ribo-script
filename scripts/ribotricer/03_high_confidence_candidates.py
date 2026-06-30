@@ -7,6 +7,11 @@ import numpy as np
 import pandas as pd
 
 
+MIN_REPLICATES = 2
+MIN_PHASE_SCORE = 0.50
+MIN_READ_COUNT = 10
+
+
 def find_column(columns, candidates):
     for col in candidates:
         if col in columns:
@@ -33,11 +38,11 @@ def main():
 
     dfs = []
 
-    for f in files:
-        df = pd.read_csv(f, sep="\t")
+    for file in files:
+        df = pd.read_csv(file, sep="\t")
 
         if "sample" not in df.columns:
-            sample = os.path.basename(f).replace("_ranked_lncrna_smorfs.tsv", "")
+            sample = os.path.basename(file).replace("_ranked_lncrna_smorfs.tsv", "")
             df["sample"] = sample
 
         dfs.append(df)
@@ -70,8 +75,7 @@ def main():
             "reads",
             "count",
             "RPF_count",
-            "valid_codons",
-            "read_component"
+            "valid_codons"
         ]
     )
 
@@ -91,16 +95,17 @@ def main():
             errors="coerce"
         ).fillna(0)
 
-    group_cols = [id_col]
-
     keep_cols = [
         "transcript_id",
-        "gene_id",
-        "gene_name",
-        "gene_type",
-        "transcript_type",
+        "gene_id_y",
+        "gene_name_y",
+        "gene_type_y",
+        "transcript_type_y",
         "ORF_length_aa",
-        "ORF_length_nt"
+        "ORF_length_nt",
+        "chrom",
+        "strand",
+        "start_codon"
     ]
 
     available_keep_cols = [
@@ -110,7 +115,7 @@ def main():
 
     summary = (
         all_df
-        .groupby(group_cols, dropna=False)
+        .groupby(id_col, dropna=False)
         .agg(
             n_replicates=("sample", "nunique"),
             samples=("sample", lambda x: ",".join(sorted(set(map(str, x))))),
@@ -140,8 +145,14 @@ def main():
         summary["n_replicates"]
     )
 
+    summary["high_confidence"] = (
+        (summary["n_replicates"] >= MIN_REPLICATES) &
+        (summary["max_phase_score"] >= MIN_PHASE_SCORE) &
+        (summary["max_read_count"] >= MIN_READ_COUNT)
+    )
+
     high_confidence = summary[
-        summary["n_replicates"] >= 2
+        summary["high_confidence"]
     ].copy()
 
     high_confidence = high_confidence.sort_values(
@@ -151,6 +162,17 @@ def main():
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
+    summary_file = output_file.replace(
+        "_high_confidence_candidates.tsv",
+        "_lncrna_smorfs_reproducibility_summary.tsv"
+    )
+
+    summary.to_csv(
+        summary_file,
+        sep="\t",
+        index=False
+    )
+
     high_confidence.to_csv(
         output_file,
         sep="\t",
@@ -159,7 +181,9 @@ def main():
 
     print(f"Total unique lncRNA-smORFs : {len(summary):,}")
     print(f"High-confidence candidates : {len(high_confidence):,}")
-    print(f"Saved: {output_file}")
+    print(f"Criteria: n_replicates>={MIN_REPLICATES}, max_phase_score>={MIN_PHASE_SCORE}, max_read_count>={MIN_READ_COUNT}")
+    print(f"Saved summary: {summary_file}")
+    print(f"Saved high-confidence: {output_file}")
 
 
 if __name__ == "__main__":
