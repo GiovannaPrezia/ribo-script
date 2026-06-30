@@ -649,16 +649,22 @@ for SAMPLE in "${SAMPLES[@]}"; do
     esac
 done
 
-if [[ "$MODULE" == "9" || "$MODULE" == "12" ]]; then
+FINAL_MODULE="$MODULE"
+
+if [[ "$CONTINUE_ALL" == true ]]; then
+    FINAL_MODULE="12"
+fi
+
+if [[ "$FINAL_MODULE" == "9" || "$FINAL_MODULE" == "12" ]]; then
     run_report
     run_riboseq_qc_figures
 fi
 
-if [[ "$MODULE" == "10" || "$MODULE" == "12" ]]; then
+if [[ "$FINAL_MODULE" == "10" || "$FINAL_MODULE" == "12" ]]; then
     run_ribotricer
 fi
 
-if [[ "$MODULE" == "11" || "$MODULE" == "12" ]]; then
+if [[ "$FINAL_MODULE" == "11" || "$FINAL_MODULE" == "12" ]]; then
     run_final_report
 fi
 
