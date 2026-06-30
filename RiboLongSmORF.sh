@@ -63,16 +63,6 @@ ENV_NAME="ribolongsmorf_env"
     exit 1
 }
 
-[[ -f "scripts/reports/09_qc_master_table.R" ]] || {
-    echo "ERROR: 09_qc_master_table.R not found."
-
-    echo ""
-    echo "Please verify:"
-    echo "scripts/reports/09_qc_master_table.R"
-
-    exit 1
-}
-
 [[ -f "scripts/ribotricer/03_high_confidence_candidates.py" ]] || {
     echo "ERROR: 03_high_confidence_candidates.py not found."
 
@@ -83,12 +73,12 @@ ENV_NAME="ribolongsmorf_env"
     exit 1
 }
 
-[[ -f "scripts/reports/09_qc_master_table.R" ]] || {
+[[ -f "scripts/qc_plots/09_qc_master_table.R" ]] || {
     echo "ERROR: 09_qc_master_table.R not found."
 
     echo ""
     echo "Please verify:"
-    echo "scripts/reports/09_qc_master_table.R"
+    echo "scripts/qc_plots/09_qc_master_table.R"
 
     exit 1
 }
