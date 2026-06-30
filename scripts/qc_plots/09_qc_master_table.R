@@ -28,18 +28,10 @@ dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 outfile <- file.path(outdir, paste0(project_name, "_QC_master_table.tsv"))
 
-count_fastq_reads <- function(fastq) {
-  if (!file.exists(fastq)) return(NA_real_)
-  as.numeric(system2("bash", c("-c", shQuote(paste0("zcat ", fastq, " | wc -l"))), stdout = TRUE)) / 4
-}
-
 get_fastq_stats <- function(fastq) {
-  if (!file.exists(fastq)) {
-    return(tibble(Reads = NA, Length = NA, GC = NA))
-  }
+  if (!file.exists(fastq)) return(tibble(Reads = NA, Length = NA, GC = NA))
 
-  cmd <- paste("seqkit stats -T", shQuote(fastq))
-  x <- read_tsv(pipe(cmd), show_col_types = FALSE)
+  x <- read_tsv(pipe(paste("seqkit stats -T", shQuote(fastq))), show_col_types = FALSE)
 
   tibble(
     Reads = x$num_seqs[1],
@@ -48,23 +40,22 @@ get_fastq_stats <- function(fastq) {
   )
 }
 
+count_fastq_reads <- function(fastq) {
+  if (!file.exists(fastq)) return(NA_real_)
+  as.numeric(system2("bash", c("-c", shQuote(paste0("zcat ", fastq, " | wc -l"))), stdout = TRUE)) / 4
+}
+
 extract_star_value <- function(file, pattern) {
   if (!file.exists(file)) return(NA_character_)
-
   lines <- readLines(file, warn = FALSE)
   line <- lines[str_detect(lines, fixed(pattern))]
-
   if (length(line) == 0) return(NA_character_)
-
   str_trim(str_split(line[1], "\\|", simplify = TRUE)[, 2])
 }
 
 parse_bowtie <- function(file) {
   if (!file.exists(file)) {
-    return(tibble(
-      Post_Contaminant_Reads = NA,
-      Retention_Percent = NA
-    ))
+    return(tibble(Post_Contaminant_Reads = NA, Retention_Percent = NA))
   }
 
   lines <- readLines(file, warn = FALSE)
@@ -84,15 +75,31 @@ parse_bowtie <- function(file) {
 }
 
 parse_cutadapt_removed <- function(file) {
-  if (!file.exists(file)) return(NA_character_)
+  if (!file.exists(file)) return(NA_real_)
 
   lines <- readLines(file, warn = FALSE)
-  line <- lines[str_detect(lines, "Reads written")]
 
-  if (length(line) == 0) return(NA_character_)
+  total_line <- lines[str_detect(lines, "Total reads processed:")]
+  written_line <- lines[str_detect(lines, "Reads written \\(passing filters\\):")]
 
-  pct <- str_match(line[1], "\\(([^%]+)%\\)")[, 2]
-  pct
+  if (length(total_line) == 0 || length(written_line) == 0) return(NA_real_)
+
+  total_reads <- total_line[1] |>
+    str_extract("[0-9,]+$") |>
+    str_replace_all(",", "") |>
+    as.numeric()
+
+  written_reads <- written_line[1] |>
+    str_extract("[0-9,]+") |>
+    str_replace_all(",", "") |>
+    as.numeric()
+
+  round((1 - written_reads / total_reads) * 100, 2)
+}
+
+count_rows_file <- function(file) {
+  if (!file.exists(file)) return(NA_integer_)
+  nrow(read_tsv(file, show_col_types = FALSE))
 }
 
 get_ribotricer_counts <- function(ribotricer_dir, sample, mode) {
@@ -107,23 +114,28 @@ get_ribotricer_counts <- function(ribotricer_dir, sample, mode) {
     ))
   }
 
-  ribo_files <- list.files(mode_dir, pattern = sample, full.names = TRUE)
+  orf_file <- file.path(mode_dir, paste0(sample, ".", mode, "_translating_ORFs.tsv"))
+  smorf_file <- file.path(mode_dir, paste0(sample, ".", mode, "_smorfs_20_150aa.tsv"))
+  lncrna_file <- file.path(mode_dir, paste0(sample, ".", mode, "_lncrna_smorfs.tsv"))
+  hc_file <- file.path(mode_dir, paste0(mode, "_high_confidence_candidates.tsv"))
 
-  orf_file <- ribo_files[str_detect(basename(ribo_files), "translating|translated|ORFs")]
-  smorf_file <- ribo_files[str_detect(basename(ribo_files), "smorfs_20_150aa")]
-  lncrna_file <- ribo_files[str_detect(basename(ribo_files), "lncrna_smorfs")]
-  hc_file <- ribo_files[str_detect(basename(ribo_files), "high_confidence_candidates")]
+  hc_count <- NA_integer_
 
-  count_rows <- function(files) {
-    if (length(files) == 0 || !file.exists(files[1])) return(NA_integer_)
-    nrow(read_tsv(files[1], show_col_types = FALSE))
+  if (file.exists(hc_file)) {
+    hc <- read_tsv(hc_file, show_col_types = FALSE)
+
+    if ("samples" %in% colnames(hc)) {
+      hc_count <- sum(str_detect(hc$samples, fixed(paste0(sample, ".", mode))))
+    } else {
+      hc_count <- nrow(hc)
+    }
   }
 
   tibble(
-    ORFs_detected = count_rows(orf_file),
-    smORFs_detected = count_rows(smorf_file),
-    lncRNA_smORFs = count_rows(lncrna_file),
-    High_confidence_smORFs = count_rows(hc_file)
+    ORFs_detected = count_rows_file(orf_file),
+    smORFs_detected = count_rows_file(smorf_file),
+    lncRNA_smORFs = count_rows_file(lncrna_file),
+    High_confidence_smORFs = hc_count
   )
 }
 
@@ -136,11 +148,7 @@ if (length(raw_fastqs) == 0) {
 rows <- list()
 
 for (raw_fastq in raw_fastqs) {
-
-  sample <- basename(raw_fastq) |>
-    str_remove("\\.fastq\\.gz$")
-
-  run <- "NA"
+  sample <- basename(raw_fastq) |> str_remove("\\.fastq\\.gz$")
 
   raw_stats <- get_fastq_stats(raw_fastq)
 
@@ -158,7 +166,6 @@ for (raw_fastq in raw_fastqs) {
   post_n_polyg_reads <- count_fastq_reads(post_n_polyg_fastq)
 
   for (mode in c("all_lengths", "28_36")) {
-
     clean_fastq <- file.path(
       clean_dir,
       mode,
@@ -170,12 +177,11 @@ for (raw_fastq in raw_fastqs) {
 
     clean_stats <- get_fastq_stats(clean_fastq)
     bowtie_stats <- parse_bowtie(bowtie_log)
-
     ribo_stats <- get_ribotricer_counts(ribotricer_dir, sample, mode)
 
     rows[[length(rows) + 1]] <- tibble(
       Sample = sample,
-      Run = run,
+      Run = NA_character_,
       Mode = mode,
 
       Raw_Reads = raw_stats$Reads,
