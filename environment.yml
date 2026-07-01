@@ -69,6 +69,7 @@ dependencies:
   - r-stringr
   - r-patchwork
   - r-tibble
+  - r-writexl
 
   # ====================================================
   # Bioconductor
