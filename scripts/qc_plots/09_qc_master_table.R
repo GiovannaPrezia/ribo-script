@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(stringr)
   library(tibble)
+  library(writexl)
 })
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -27,6 +28,8 @@ outdir <- file.path(project_root, "13_Report/tables")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 outfile <- file.path(outdir, paste0(project_name, "_QC_master_table.tsv"))
+xlsx_outfile <- file.path(outdir, paste0(project_name, "_QC_master_table.xlsx"))
+csv_outfile <- file.path(outdir, paste0(project_name, "_QC_master_table.csv"))
 
 get_fastq_stats <- function(fastq) {
   if (!file.exists(fastq)) return(tibble(Reads = NA, Length = NA, GC = NA))
@@ -217,6 +220,10 @@ for (raw_fastq in raw_fastqs) {
 qc_table <- bind_rows(rows)
 
 write_tsv(qc_table, outfile)
+write_csv(qc_table, csv_outfile)
+write_xlsx(qc_table, xlsx_outfile)
 
 cat("QC master table saved:\n")
 cat(outfile, "\n")
+cat(csv_outfile, "\n")
+cat(xlsx_outfile, "\n")
